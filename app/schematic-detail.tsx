@@ -25,6 +25,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -33,7 +34,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
-function getCustomerFirstName(user: any): string {
+function getCustomerFirstName(user) {
   return user?.user_metadata?.first_name || '';
 }
 
@@ -43,14 +44,14 @@ export default function SchematicDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { currentProject } = useProjects();
-  const params = useLocalSearchParams<{ hasShore: string; cableRun: string; useLynx: string }>();
+  const params = useLocalSearchParams();
 
   const hasShore = params.hasShore === 'true';
-  const cableRun = (params.cableRun ?? 'medium') as CableRunLength;
+  const cableRun = (params.cableRun ?? 'medium');
   const useLynx = params.useLynx === 'true';
 
   const [exporting, setExporting] = useState(false);
-  const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  const [imageMap, setImageMap] = useState({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   useEffect(() => {
@@ -58,29 +59,29 @@ export default function SchematicDetailScreen() {
   }, []);
 
   const state = currentProject?.camper_state;
-  const buildSpec = state && (state as any).usage ? calculate(state as any) : null;
+  const buildSpec = state && state.usage ? calculate(state) : null;
 
-  const needs240v = !!(state as any)?.needs240v;
+  const needs240v = !!state?.needs240v;
   const hasLPG = !!(
-    (state as any)?.cookFuel === 'Gas' ||
-    (state as any)?.heatFuel === 'Gas' ||
-    (state as any)?.waterFuel === 'Gas'
+    state?.cookFuel === 'Gas' ||
+    state?.heatFuel === 'Gas' ||
+    state?.waterFuel === 'Gas'
   );
 
   const selectedDcAppliances = state
-    ? Object.entries((state as any).selectedAppliances || {}).filter(([_, on]) => on).map(([id]) => id)
+    ? Object.entries(state.selectedAppliances || {}).filter(([_, on]) => on).map(([id]) => id)
     : [];
   const customApplianceNames = state
-    ? ((state as any).customAppliances || []).map((a: any) => a.name)
+    ? (state.customAppliances || []).map((a) => a.name)
     : [];
 
-  const wiringConfig: SystemConfig | null = buildSpec ? {
+  const wiringConfig = buildSpec ? {
     batteryAh: buildSpec.recommendedBankAh,
-    inverterVA: (needs240v
+    inverterVA: needs240v
       ? (buildSpec.inverterSize <= 1000 ? 800 : buildSpec.inverterSize <= 2000 ? 2000 : 3000)
-      : 0) as SystemConfig['inverterVA'],
-    solarWatts: (buildSpec.recommendedSolarW <= 200 ? 200 : buildSpec.recommendedSolarW <= 400 ? 400 : 600) as SystemConfig['solarWatts'],
-    dcDcAmps: (buildSpec.dcDcChargerSize <= 18 ? 18 : buildSpec.dcDcChargerSize <= 30 ? 30 : 50) as SystemConfig['dcDcAmps'],
+      : 0,
+    solarWatts: buildSpec.recommendedSolarW <= 200 ? 200 : buildSpec.recommendedSolarW <= 400 ? 400 : 600,
+    dcDcAmps: buildSpec.dcDcChargerSize <= 18 ? 18 : buildSpec.dcDcChargerSize <= 30 ? 30 : 50,
     hasShore: needs240v ? hasShore : false,
     hasLPG,
     cableRunLength: cableRun,
@@ -89,7 +90,7 @@ export default function SchematicDetailScreen() {
     customApplianceNames,
   } : null;
 
-  const wiringSpec: WiringSpec | null = useMemo(() => {
+  const wiringSpec = useMemo(() => {
     if (!wiringConfig) return null;
     try { return generateWiringSpec(wiringConfig); } catch { return null; }
   }, [wiringConfig]);
@@ -101,7 +102,7 @@ export default function SchematicDetailScreen() {
     return generateSchematicWebviewHTML(wiringSpec, wiringConfig, imageMap);
   }, [wiringSpec, wiringConfig, imagesLoaded, imageMap]);
 
-  async function handleExport(method: 'share' | 'email') {
+  async function handleExport(method) {
     if (!wiringSpec || !wiringConfig) return;
     if (!imagesLoaded) {
       Alert.alert('Loading', 'Component images are still loading. Please wait a moment and try again.');
@@ -110,56 +111,40 @@ export default function SchematicDetailScreen() {
     setExporting(true);
     try {
       const html = generateSchematicPDFHTML(wiringSpec, wiringConfig, projectName, imageMap);
-      const { uri } = await Print.printToFileAsync({
-        html,
-        base64: false,
-        width: 842,
-        height: 595,
-      });
-      const subject = `CamperPlan by Crafted — ${projectName} Wiring Schematic`;
-
+      const { uri } = await Print.printToFileAsync({ html, base64: false, width: 842, height: 595 });
+      const subject = 'CamperPlan by Crafted — ' + projectName + ' Wiring Schematic';
       if (method === 'share') {
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${projectName} Wiring Schematic` });
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: projectName + ' Wiring Schematic' });
         } else {
           Alert.alert('PDF saved', uri);
         }
       } else {
         const canEmail = await MailComposer.isAvailableAsync();
         if (canEmail) {
-          const sendEmail = async (name: string) => {
-            const greeting = name ? `Hi ${name},` : 'Hi,';
+          const existing = getCustomerFirstName(user);
+          const sendEmail = async (name) => {
+            const greeting = name ? 'Hi ' + name + ',' : 'Hi,';
             await MailComposer.composeAsync({
               subject,
-              body: `${greeting}\n\nPlease find attached the wiring schematic for "${projectName}", generated by CamperPlan by Crafted.\n\nThis document includes the component layout with Victron product imagery, cable sizing, fuse ratings, applicable UK regulations, and safety notes.\n\nIMPORTANT: All electrical installations must be verified and signed off by a qualified/competent electrician before first use. An Electrical Installation Certificate (EIC) is required.\n\nFor trade pricing or a bespoke build quote, please visit craftedcamper.co or email dan@craftedcamper.co.\n\nDan Andrews\nCrafted Camper Co (Yorkshire) LTD\ncraftedcamper.co`,
+              body: greeting + '\n\nPlease find attached the wiring schematic for "' + projectName + '".\n\nDan Andrews\nCrafted Camper Co',
               attachments: [uri],
             });
           };
-          const existing = getCustomerFirstName(user);
           if (existing) {
             await sendEmail(existing);
           } else {
-            Alert.prompt(
-              'Your name',
-              'Enter your first name so we can personalise your emails.',
-              [
-                { text: 'Skip', style: 'cancel', onPress: () => sendEmail('') },
-                { text: 'Save', onPress: (name?: string) => {
-                  if (name?.trim()) updateProfile(name.trim()).catch(() => {});
-                  sendEmail(name?.trim() || '');
-                }},
-              ],
-              'plain-text',
-              '',
-              'default',
-            );
+            Alert.prompt('Your name', 'Enter your first name', [
+              { text: 'Skip', style: 'cancel', onPress: () => sendEmail('') },
+              { text: 'Save', onPress: (name) => { if (name?.trim()) updateProfile(name.trim()).catch(() => {}); sendEmail(name?.trim() || ''); }},
+            ], 'plain-text', '', 'default');
           }
         } else {
           await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert('Export failed', e?.message ?? 'Unknown error');
     } finally {
       setExporting(false);
@@ -169,8 +154,6 @@ export default function SchematicDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: '#1A1A1A' }]}>
       <TopographicBackground />
-
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => goBackOrHome(router)} style={styles.backBtn} activeOpacity={0.7}>
           <FontAwesome name="chevron-left" size={14} color="#D9A05B" />
@@ -195,34 +178,40 @@ export default function SchematicDetailScreen() {
           )}
         </View>
       </View>
-
       <View style={styles.discountBar}>
         <MaterialCommunityIcons name="book-open-variant" size={13} color="#2E4C3D" />
         <Text style={styles.discountText}>
           £75 bespoke package: full wiring schematic + installation instructions, tailored to this build.
         </Text>
       </View>
-
       {wiringSpec && wiringConfig && webviewHTML ? (
-        <WebView
-          source={{ html: webviewHTML }}
-          style={styles.canvas}
-          scalesPageToFit={false}
-          scrollEnabled
-          bounces
-          showsHorizontalScrollIndicator
-          showsVerticalScrollIndicator
-          originWhitelist={['*']}
-          javaScriptEnabled
-          onMessage={(event) => {
-            try {
-              const data = JSON.parse(event.nativeEvent.data);
-              if (data.action === 'buy' && data.productId) {
-                router.push({ pathname: '/shop', params: { highlight: data.productId } });
-              }
-            } catch {}
-          }}
-        />
+        Platform.OS === 'web' ? (
+          <iframe
+            srcDoc={webviewHTML}
+            style={{ flex: 1, border: 'none', width: '100%', height: '100%', background: '#1a1a1a' }}
+            title="Wiring Schematic"
+          />
+        ) : (
+          <WebView
+            source={{ html: webviewHTML }}
+            style={styles.canvas}
+            scalesPageToFit={false}
+            scrollEnabled
+            bounces
+            showsHorizontalScrollIndicator
+            showsVerticalScrollIndicator
+            originWhitelist={['*']}
+            javaScriptEnabled
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.action === 'buy' && data.productId) {
+                  router.push({ pathname: '/shop', params: { highlight: data.productId } });
+                }
+              } catch {}
+            }}
+          />
+        )
       ) : (
         <View style={styles.empty}>
           {!imagesLoaded ? (
@@ -238,8 +227,6 @@ export default function SchematicDetailScreen() {
           )}
         </View>
       )}
-
-      {/* Bottom bar */}
       {wiringSpec && !exporting && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
           <TouchableOpacity style={styles.exportBtn} onPress={() => handleExport('share')} activeOpacity={0.85}>
