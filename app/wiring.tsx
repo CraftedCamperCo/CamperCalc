@@ -511,8 +511,9 @@ export default function WiringScreen() {
   const canGenerate = validationErrors.length === 0;
 
   const isDark = theme.blurTint === 'dark';
-  const installUnlocked = hasEntitlement('electrical_install_guide');
-  const salesSuiteUnlocked = hasEntitlement('sales_suite_access');
+  const reviewBypass = FEATURE_FLAGS.SCHEMATICS_REVIEW_BYPASS;
+  const installUnlocked = reviewBypass || hasEntitlement('electrical_install_guide');
+  const salesSuiteUnlocked = reviewBypass || hasEntitlement('sales_suite_access');
 
   const previewHTML = useMemo(() => {
     if (!wiringSpec || !wiringConfig) return null;
@@ -590,8 +591,8 @@ export default function WiringScreen() {
     );
   }
 
-  // Auth gate — require login to access schematics
-  if (!user) {
+  // Auth gate — bypassed temporarily for schematic review mode.
+  if (!user && !reviewBypass) {
     return (
       <View style={[s.container, { backgroundColor: theme.background }]}>
         <TopographicBackground />
