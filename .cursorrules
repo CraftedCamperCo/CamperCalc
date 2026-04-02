@@ -1,0 +1,28 @@
+# CAMPERPLAN — BRAND GUIDELINES AND AGENT RULES
+
+## Product Intelligence Brief
+- The file `docs/PRODUCT_INTELLIGENCE_BRIEF.md` is the single source of truth for product features, pricing, audience, and brand messaging.
+- **Rule:** Any time a major change is made — new feature shipped, pricing updated, product added/removed, launch milestone hit, or new integration completed — the agent MUST update `docs/PRODUCT_INTELLIGENCE_BRIEF.md` to reflect it. Do not wait to be asked.
+- Sections to keep current: Features (section 4), Pricing (section 5), Product Catalogue (section 6), Launch Timeline (section 10).
+
+---
+
+## Brand Identity
+- **Company Name:** Crafted Camper Co (Yorkshire) LTD
+- **App Name:** CamperPlan by Crafted
+- **Primary Call to Action:** "Craft My Camper" (Never use generic terms like "Submit" or "Calculate")
+- **Tone of Voice:** Premium, authoritative, bespoke, and practical. We speak to both DIYers and luxury bespoke clients. We use professional vanlife terminology (e.g., 2-Season, 3-Season, Off-Grid, Hookup, CNC-cut).
+- **Brand Vibe:** High-end architectural but rugged. Like a premium Yeti cooler or a Land Rover Defender.
+
+## Design System (Colors)
+- **Primary Brand Color:** #1A1A1A (Deep Matte Black / Charcoal - represents the rugged/premium feel, like your Raptor paint jobs)
+- **Secondary/Accent Color:** #D9A05B (Warm Wood / Birch / Oak tone - represents the handcrafted CNC furniture)
+- **Background Color:** #F8F9FA (Off-white/Light gray for a clean, modern look)
+- **Text Color:** #333333 (Dark charcoal, softer than pure black for readability)
+- **Success/Highlight Color:** #2E4C3D (Forest Green - for toggles and 'Go' actions)
+
+## Coding Rules
+- We are using React Native and Expo Router.
+- Always use the centralized theme colors from the constants folder, do not hardcode hex codes into individual screens.
+- Keep the UI clean, with rounded corners (borderRadius: 12) and subtle, premium shadows to feel like a native iOS app.
+- Focus on smooth transitions and a "Concierge" step-by-step feel.

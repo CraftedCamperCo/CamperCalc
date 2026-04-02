@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CamperPlan by Crafted — Join the Waitlist</title>
+  <meta name="description" content="The app that changes how you plan a campervan build. Join the early access waitlist." />
+
+  <!-- Open Graph (for sharing) -->
+  <meta property="og:title" content="CamperPlan by Crafted — Join the Waitlist" />
+  <meta property="og:description" content="Plan your van build like a pro. Electrical systems, insulation, water, wiring and more. Launching soon." />
+  <meta property="og:image" content="../assets/images/crafted-logo.png" />
+  <meta property="og:url" content="https://www.craftedcamper.co/waitlist" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --charcoal: #1A1A1A;
+      --charcoal-mid: #252525;
+      --gold: #D9A05B;
+      --gold-hover: #C8904A;
+      --green: #2E4C3D;
+      --off-white: #F5F5F7;
+      --text-light: #F0EEE8;
+      --text-muted: #888888;
+      --card-bg: rgba(255,255,255,0.04);
+      --card-border: rgba(255,255,255,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--charcoal);
+      color: var(--text-light);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Topographic line pattern */
+    .topo-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.07;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 38px,
+          rgba(217,160,91,0.6) 38px,
+          rgba(217,160,91,0.6) 40px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 58px,
+          rgba(217,160,91,0.3) 58px,
+          rgba(217,160,91,0.3) 60px
+        );
+      pointer-events: none;
+    }
+
+    /* Radial glow behind hero */
+    .hero-glow {
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(circle, rgba(217,160,91,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* Nav */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 0 0;
+    }
+
+    nav img {
+      height: 40px;
+      width: auto;
+    }
+
+    /* Hero section */
+    .hero {
+      text-align: center;
+      padding: 64px 0 48px;
+    }
+
+    .hero .eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+      padding: 6px 16px;
+      border: 1px solid rgba(217,160,91,0.3);
+      border-radius: 100px;
+    }
+
+    .hero h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(32px, 6vw, 52px);
+      font-weight: 700;
+      line-height: 1.15;
+      color: #FFFFFF;
+      margin-bottom: 20px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero h1 span {
+      color: var(--gold);
+    }
+
+    .hero p {
+      font-size: 17px;
+      line-height: 1.7;
+      color: #B8B0A4;
+      max-width: 480px;
+      margin: 0 auto 40px;
+    }
+
+    /* Signup card */
+    .signup-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 16px;
+      padding: 36px 40px;
+      margin-bottom: 64px;
+      backdrop-filter: blur(12px);
+    }
+
+    .signup-card h2 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 6px;
+    }
+
+    .signup-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 520px) {
+      .form-row { grid-template-columns: 1fr; }
+      .signup-card { padding: 28px 20px; }
+    }
+
+    input[type="text"],
+    input[type="email"] {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 15px;
+      color: #FFFFFF;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      font-family: inherit;
+    }
+
+    input::placeholder { color: rgba(255,255,255,0.3); }
+
+    input:focus {
+      border-color: var(--gold);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .email-row { margin-bottom: 20px; }
+
+    .cta-btn {
+      width: 100%;
+      background-color: var(--gold);
+      color: var(--charcoal);
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: 100px;
+      padding: 16px 32px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      letter-spacing: 0.3px;
+    }
+
+    .cta-btn:hover { background-color: var(--gold-hover); }
+    .cta-btn:active { transform: scale(0.98); }
+
+    .cta-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .form-note {
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      margin-top: 14px;
+    }
+
+    /* Success state */
+    .success-state {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .success-icon {
+      width: 52px;
+      height: 52px;
+      background-color: var(--green);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 22px;
+    }
+
+    .success-state h3 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 22px;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+
+    .success-state p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .error-msg {
+      display: none;
+      color: #e87171;
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* Feature strip */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+
+    @media (max-width: 520px) {
+      .features { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px 20px;
+      text-align: center;
+    }
+
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Founder section */
+    .founder {
+      display: flex;
+      align-items: flex-start;
+      gap: 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 48px;
+    }
+
+    @media (max-width: 520px) {
+      .founder { flex-direction: column; align-items: center; text-align: center; }
+    }
+
+    .founder-photo {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--gold);
+      flex-shrink: 0;
+    }
+
+    .founder-text blockquote {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #D0C8BE;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+
+    .founder-text cite {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-style: normal;
+    }
+
+    .founder-text cite strong {
+      color: var(--gold);
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    /* Social proof */
+    .social-proof {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .social-proof p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .avatar-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: -8px;
+      margin-bottom: 10px;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--charcoal);
+      margin-left: -6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .avatar:first-child { margin-left: 0; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 32px;
+    }
+
+    footer p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.25);
+      line-height: 1.8;
+    }
+
+    footer a {
+      color: rgba(255,255,255,0.35);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--gold); }
+
+    .gold-line {
+      width: 48px;
+      height: 2px;
+      background: var(--gold);
+      border-radius: 2px;
+      margin: 0 auto 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topo-bg"></div>
+  <div class="hero-glow"></div>
+
+  <div class="page">
+
+    <!-- Nav -->
+    <nav>
+      <a href="https://www.craftedcamper.co">
+        <img src="../assets/images/crafted-logo.png" alt="Crafted Camper Co." />
+      </a>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="eyebrow">Early Access Now Open</div>
+      <h1>Plan your van build<br /><span>like a pro.</span></h1>
+      <p>CamperPlan is the app I wish existed when I started. Everything you need to plan, design, and price your campervan build, built by a builder, for builders.</p>
+    </section>
+
+    <!-- Signup card -->
+    <div class="signup-card">
+      <h2>Join the waitlist</h2>
+      <p>Be first in when we launch. No spam, ever.</p>
+
+      <div id="form-wrap">
+        <form id="signup-form" novalidate>
+          <div class="form-row">
+            <input type="text" id="firstName" name="firstName" placeholder="First name" required autocomplete="given-name" />
+            <input type="text" id="lastName" name="lastName" placeholder="Last name" required autocomplete="family-name" />
+          </div>
+          <div class="email-row">
+            <input type="email" id="email" name="email" placeholder="Your email address" required autocomplete="email" />
+          </div>
+          <button type="submit" class="cta-btn" id="submit-btn">
+            Craft My Camper
+          </button>
+          <p class="form-note">Free to join. No card required.</p>
+          <p class="error-msg" id="error-msg"></p>
+        </form>
+      </div>
+
+      <div class="success-state" id="success-state">
+        <div class="success-icon">&#10003;</div>
+        <h3>You're on the list.</h3>
+        <p>We'll be in touch when early access opens. In the meantime, check out the builds at <a href="https://www.craftedcamper.co" style="color:var(--gold);">craftedcamper.co</a></p>
+      </div>
+    </div>
+
+    <!-- Feature strip -->
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">&#9889;</div>
+        <h3>Electrical Calc</h3>
+        <p>Size batteries, solar, and inverters with precision</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#9748;</div>
+        <h3>Insulation Planner</h3>
+        <p>Tailored to your climate and travel seasons</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128196;</div>
+        <h3>Full Build Plan</h3>
+        <p>Exportable shopping lists and wiring schematics</p>
+      </div>
+    </div>
+
+    <div class="gold-line"></div>
+
+    <!-- Founder -->
+    <div class="founder">
+      <img
+        class="founder-photo"
+        src="../assets/images/dan-founder.png"
+        alt="Dan Andrews, Crafted Camper Co."
+      />
+      <div class="founder-text">
+        <blockquote>
+          "I've spent years building bespoke campervans. Every client asks the same questions, makes the same expensive mistakes. CamperPlan gives everyone the knowledge I have, before they spend a penny."
+        </blockquote>
+        <cite>
+          <strong>Dan Andrews</strong>
+          Founder, Crafted Camper Co. (Yorkshire) LTD
+        </cite>
+      </div>
+    </div>
+
+    <!-- Social proof -->
+    <div class="social-proof">
+      <div class="avatar-row">
+        <div class="avatar" style="background:#2E4C3D;">JM</div>
+        <div class="avatar" style="background:#4A3728;">SB</div>
+        <div class="avatar" style="background:#1E3A5F;">RL</div>
+        <div class="avatar" style="background:#3D2E4C;">AT</div>
+        <div class="avatar" style="background:#2E4040;">KP</div>
+      </div>
+      <p>Join 400+ van builders already on the list</p>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>
+        Crafted Camper Co. (Yorkshire) LTD<br />
+        <a href="https://www.craftedcamper.co">craftedcamper.co</a>
+        &nbsp;&middot;&nbsp;
+        <a href="https://www.craftedcamper.co/privacy">Privacy</a>
+        &nbsp;&middot;&nbsp;
+        <a href="https://www.craftedcamper.co/terms">Terms</a>
+      </p>
+    </footer>
+
+  </div>
+
+  <script>
+    const SUPABASE_URL = window.CAMPERPLAN_SUPABASE_URL || '__SUPABASE_URL__';
+    const SUPABASE_ANON_KEY = window.CAMPERPLAN_SUPABASE_ANON_KEY || '__SUPABASE_ANON_KEY__';
+
+    const form = document.getElementById('signup-form');
+    const btn = document.getElementById('submit-btn');
+    const errorMsg = document.getElementById('error-msg');
+    const formWrap = document.getElementById('form-wrap');
+    const successState = document.getElementById('success-state');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      if (!firstName || !lastName || !email) {
+        showError('Please fill in all fields.');
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+      errorMsg.style.display = 'none';
+
+      try {
+        if (
+          SUPABASE_URL.includes('__SUPABASE_URL__') ||
+          SUPABASE_ANON_KEY.includes('__SUPABASE_ANON_KEY__')
+        ) {
+          throw new Error('Waitlist form is not configured. Add runtime Supabase values.');
+        }
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/subscribe-mailing-list`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ firstName, lastName, email }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          formWrap.style.display = 'none';
+          successState.style.display = 'block';
+        } else {
+          showError(data.error || 'Something went wrong. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Craft My Camper';
+        }
+      } catch (err) {
+        showError('Network error. Please check your connection and try again.');
+        btn.disabled = false;
+        btn.textContent = 'Craft My Camper';
+      }
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+    }
+  </script>
+
+</body>
+</html>

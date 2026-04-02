@@ -1,0 +1,2 @@
+supplier_name,supplier_sku,internal_product_id,name,category,description,image_url,price_gbp,vat_included,stock_status,stock_quantity,lead_time_days,shipping_profile,weight_kg,length_cm,width_cm,height_cm,brand,model,ean,last_updated_utc
+Example Supplier,SKU-123,test_product_001,Example 100Ah Battery,battery,LiFePO4 12V battery suitable for camper systems,https://example.com/image.jpg,499.99,true,in_stock,12,2,heavy,12.5,35,18,20,ExampleBrand,EB-100AH,1234567890123,2026-03-09T12:00:00Z

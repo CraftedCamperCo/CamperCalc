@@ -1,0 +1,355 @@
+import type { WiringSpec, InstallStep, SystemConfig } from '../types';
+
+export function generateInstallationGuide(spec: WiringSpec, config: SystemConfig): InstallStep[] {
+  const steps: InstallStep[] = [];
+  let stepNum = 0;
+  const next = () => ++stepNum;
+
+  // ── 1. Pre-Installation Safety ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Pre-Installation Safety Checklist',
+    instructions: [
+      'Ensure you have all required tools: hydraulic crimper, ratchet crimper, wire strippers, torque wrench, multimeter, and heat gun.',
+      'Wear appropriate PPE: safety glasses, insulated gloves when working with batteries.',
+      'Work in a well-ventilated area.',
+      'Ensure the vehicle ignition is OFF and the starter battery is disconnected if working near it.',
+      'Read all component manuals before beginning installation.',
+    ],
+    warnings: [
+      '230V IS EXTREMELY HAZARDOUS. Do not touch any live parts. When in doubt, consult a qualified electrician.',
+      'Battery terminals can produce extremely high short-circuit currents. Always use insulated tools.',
+    ],
+  });
+
+  // ── 2. Battery Compartment ──
+  const battery = spec.components.find(c => c.product.category === 'battery');
+  steps.push({
+    stepNumber: next(),
+    title: 'Prepare Battery Compartment',
+    instructions: [
+      'Select a location for your leisure battery that allows easy access for maintenance and removal.',
+      'Line the battery compartment interior with a non-corrosive material such as stainless steel.',
+      'Ensure all joints in the compartment are gas-tight and sealed.',
+      'If the compartment opens into the habitable area, ensure the lid is sealed.',
+      `Secure the ${battery?.product.name ?? 'battery'} firmly in the compartment to prevent any movement while the vehicle is in motion.`,
+    ],
+    regulations: [
+      'BS 7671 A721.55.3.4: Battery must be in a separate, secured compartment.',
+      'BS EN 1648-2:2018 4.3.6.3: Compartment must be gas-tight with anti-corrosive finish.',
+    ],
+  });
+
+  // ── 3. Component Mounting ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Mount Electrical Components',
+    instructions: [
+      'Mount all components vertically on a non-flammable surface (e.g. aluminium sheet).',
+      'Position power terminals facing downwards.',
+      'Leave at least 10cm clearance above and below each component for cooling.',
+      'Ensure mounting surface is rigid and not subject to excessive vibration.',
+      ...(spec.components.some(c => c.product.id.includes('lynx'))
+        ? ['Assemble Lynx Power In and Lynx Distributor modules together using the supplied connectors, then mount the assembly as a unit.']
+        : []),
+    ],
+    regulations: [
+      'Victron Installation Manual: Mount vertically, terminals down, 10cm clearance minimum.',
+    ],
+  });
+
+  // ── 4. Battery Installation ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Install Battery & Terminal Protection',
+    instructions: [
+      `Place the ${battery?.product.name ?? 'battery'} into its compartment and secure it.`,
+      'Fit the insulated terminal covers to protect the battery terminals from short circuits.',
+      'Do NOT connect any cables to the battery yet — this will be the final step of the DC wiring.',
+    ],
+    regulations: [
+      'BS 7671 A721.55.3.3 & BS EN 1648-2:2018 4.3.3: Battery terminals must be insulated.',
+    ],
+    warnings: [
+      'Do not wear metallic jewellery near battery terminals.',
+    ],
+  });
+
+  // ── 5. Negative Bus / SmartShunt ──
+  const mainWire = spec.connections.find(c => c.label.includes('Battery (-) to SmartShunt'));
+  steps.push({
+    stepNumber: next(),
+    title: 'Wire Negative Bus & SmartShunt',
+    instructions: [
+      `Crimp ${mainWire?.cableGauge ?? 70}mm² terminal lugs onto your main negative cable.`,
+      'Connect the battery negative terminal to the SmartShunt BAT(-) terminal.',
+      'Connect the SmartShunt SYS(-) terminal to the negative busbar or Lynx negative bus.',
+      'Connect the SmartShunt AUX cable to the battery positive via the supplied fused 1.5mm² cable.',
+      'All negative cables from other components connect to the system side of the shunt — nothing bypasses it.',
+    ],
+    cableSpecs: mainWire ? [
+      `Main negative: ${mainWire.cableGauge}mm² black tri-rated`,
+      `Terminal lugs: ${mainWire.cableGauge}-${mainWire.terminalLugFrom?.studSize ?? 8}`,
+    ] : [],
+    torqueValues: mainWire?.torqueFrom ? [`SmartShunt terminals: ${mainWire.torqueFrom}Nm`] : [],
+  });
+
+  // ── 6. Main Positive & Battery Fuse ──
+  const posWire = spec.connections.find(c => c.label.includes('Battery (+) to Distribution'));
+  steps.push({
+    stepNumber: next(),
+    title: 'Wire Main Positive & Battery Fuse',
+    instructions: [
+      `Crimp ${posWire?.cableGauge ?? 70}mm² terminal lugs onto the main positive cable.`,
+      `Install the ${posWire?.fuseRating ?? 175}A ${(posWire?.fuseType ?? 'mega').toUpperCase()} fuse in its holder within 1 metre of the battery.`,
+      'Wrap the cable from the battery terminal to the fuse with cloth tape or additional sheathing.',
+      'Connect from the battery positive through the battery isolator switch, then through the fuse to the distribution busbar.',
+    ],
+    cableSpecs: posWire ? [
+      `Main positive: ${posWire.cableGauge}mm² red tri-rated`,
+      `Fuse: ${posWire.fuseRating}A ${(posWire.fuseType ?? 'mega').toUpperCase()}`,
+    ] : [],
+    regulations: [
+      'BS 7671 A721.533.1: Fuse must be within 1m of battery.',
+      'BS 7671 A721.55.3.6 & BS EN 1648-2:2018 5.2.6: Cable must be sheathed from battery to fuse.',
+    ],
+  });
+
+  // ── 7. Inverter DC Wiring ──
+  const hasInverter = spec.components.some(c => c.product.category === 'inverterCharger' || c.product.category === 'inverter');
+  if (hasInverter) {
+    const invComp = spec.components.find(c => c.product.category === 'inverterCharger' || c.product.category === 'inverter')!;
+    const invPosWire = spec.connections.find(c => c.label.includes('Inverter DC (+)'));
+    steps.push({
+      stepNumber: next(),
+      title: `Wire ${invComp.product.name} DC Connections`,
+      instructions: [
+        `Connect ${invPosWire?.cableGauge ?? 70}mm² positive cable from the distribution busbar to the ${invComp.product.name} DC(+) terminal.`,
+        `Connect ${invPosWire?.cableGauge ?? 70}mm² negative cable from the negative busbar to the DC(-) terminal.`,
+        `Apply correct torque: ${invPosWire?.torqueTo ?? 9}Nm.`,
+        ...(invComp.product.category === 'inverterCharger'
+          ? ['Connect the inverter casing ground terminal to the Lynx negative busbar or chassis ground.']
+          : []),
+      ],
+      cableSpecs: [
+        `DC cables: ${invPosWire?.cableGauge ?? 70}mm² red (+) and black (-) tri-rated`,
+        `Terminal lugs: ${invPosWire?.cableGauge ?? 70}-${invPosWire?.terminalLugTo?.studSize ?? 8}`,
+      ],
+      torqueValues: [`DC terminals: ${invPosWire?.torqueTo ?? 9}Nm`],
+    });
+  }
+
+  // ── 8. MPPT Wiring ──
+  if (config.solarWatts > 0) {
+    const mpptComp = spec.components.find(c => c.product.category === 'mppt')!;
+    const mpptWire = spec.connections.find(c => c.label.includes('MPPT → Battery (+)'));
+    steps.push({
+      stepNumber: next(),
+      title: `Wire ${mpptComp.product.name} Battery Side`,
+      instructions: [
+        `Connect ${mpptWire?.cableGauge ?? 16}mm² cable from distribution busbar to the MPPT BAT(+) terminal.`,
+        `Connect ${mpptWire?.cableGauge ?? 16}mm² cable from negative busbar to BAT(-) terminal.`,
+        'If the MPPT has a casing ground terminal, connect it to the negative busbar.',
+      ],
+      cableSpecs: [
+        `Battery side: ${mpptWire?.cableGauge ?? 16}mm² red (+) and black (-)`,
+      ],
+      torqueValues: mpptWire?.torqueTo ? [`MPPT battery terminals: ${mpptWire.torqueTo}Nm`] : [],
+    });
+
+    steps.push({
+      stepNumber: next(),
+      title: 'Wire Solar Panels to MPPT',
+      instructions: [
+        'Install the ZBENY PV switch-disconnector between the solar panels and the MPPT.',
+        'Connect 6mm² Victron solar cable from the panels through the roof entry gland.',
+        'Feed cables through the PV disconnect switch, then to the MPPT PV(+) and PV(-) terminals.',
+        'Do NOT connect the panels yet — connect PV last, after all other wiring is complete.',
+        'Use the MC4 connectors supplied with the panels for the roof-side connections.',
+      ],
+      cableSpecs: [
+        '6mm² Victron solar cable (pair)',
+      ],
+      regulations: [
+        'BS EN 1648-1:2018 4.4.2: PV disconnect switch required between panels and controller.',
+      ],
+      warnings: [
+        'Solar panels produce voltage as soon as exposed to light. Cover panels during installation.',
+      ],
+    });
+  }
+
+  // ── 9. DC-DC Charger Wiring ──
+  if (config.dcDcAmps > 0) {
+    const dcdcComp = spec.components.find(c => c.product.category === 'dcdc')!;
+    const starterWire = spec.connections.find(c => c.label.includes('Starter Battery → DC-DC (+)'));
+    const outWire = spec.connections.find(c => c.label.includes('DC-DC → Battery (+)'));
+    steps.push({
+      stepNumber: next(),
+      title: `Wire ${dcdcComp.product.name}`,
+      instructions: [
+        `Starter battery side: connect ${starterWire?.cableGauge ?? 16}mm² cable from starter battery (+) through a ${starterWire?.fuseRating ?? 60}A fuse to the DC-DC Input(+).`,
+        `Install the starter-side fuse holder within 1 metre of the starter battery.`,
+        `Connect ${starterWire?.cableGauge ?? 16}mm² cable from starter battery (-) to DC-DC Input(-).`,
+        `Leisure side: connect ${outWire?.cableGauge ?? 16}mm² cable from DC-DC Output(+) to the distribution busbar.`,
+        `Connect Output(-) to the system negative busbar.`,
+        ...(dcdcComp.product.connections.find(c => c.id === 'IGN')
+          ? ['Connect the ignition sense wire (0.5mm²) to a switched ignition source or leave disconnected if using voltage-sensing mode.']
+          : []),
+        'Install crimps on all cables BEFORE connecting to the starter battery.',
+        'Wrap starter-side cables with cloth tape, leaving enough red visible to identify positive.',
+      ],
+      cableSpecs: [
+        `Starter side: ${starterWire?.cableGauge ?? 16}mm² red (+) and black (-)`,
+        `Leisure side: ${outWire?.cableGauge ?? 16}mm²`,
+        `Fuse: ${starterWire?.fuseRating ?? 60}A MIDI`,
+      ],
+      regulations: [
+        'BS 7671 A721.533.1: Fuse within 1m of starter battery.',
+      ],
+    });
+  }
+
+  // ── 10. Battery Protect & DC Fuse Block ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Wire Battery Protect & DC Load Fuse Block',
+    instructions: [
+      'Connect the Battery Protect input to the distribution busbar positive.',
+      'Connect the Battery Protect output to the Blue Sea ST Blade fuse block positive input.',
+      'Connect the fuse block negative bus to the system negative busbar using 16mm² cable.',
+      'Install blade fuses for each 12V DC circuit (lighting, fridge, fan, USB, water pump, etc.).',
+      'Each individual circuit gets its own appropriately rated blade fuse.',
+    ],
+    cableSpecs: [
+      '16mm² from distribution to Battery Protect and fuse block',
+    ],
+    regulations: [
+      'BS 7671 A721.533.1.6: Each DC circuit must be individually fused.',
+    ],
+  });
+
+  // ── 11. AC Wiring (if shore power) ──
+  if (config.hasShore) {
+    const invComp = spec.components.find(c => c.product.category === 'inverterCharger');
+    steps.push({
+      stepNumber: next(),
+      title: 'Wire AC System (Shore Power)',
+      instructions: [
+        'Install the shore power inlet on the exterior of the vehicle.',
+        'Run 2.5mm² H07RN-F 3-core cable from the shore inlet to the Sterling transfer switch.',
+        'Wire the MultiPlus AC-Out to the second input of the transfer switch.',
+        'Run the transfer switch output to the AC-In consumer unit.',
+        'Wire from the AC-In consumer unit (16A MCB) to the MultiPlus AC-In terminals.',
+        'Wire the MultiPlus AC-Out terminals to the AC-Out consumer unit.',
+        'Install Type A 30mA RCD and DP Type B MCBs in both consumer units.',
+        ...(invComp ? [
+          'CRITICAL: Connect the earth wire inside the MultiPlus to FJ2 to create the neutral-to-earth bond required for RCD operation.',
+        ] : []),
+        'ALL 230V AC cables must be run in conduit, separated from 12V DC cables.',
+        'Fit WISKA cable glands to all enclosure cable entries for IP rating compliance.',
+      ],
+      cableSpecs: [
+        '2.5mm² H07RN-F 3-core rubber flex for main AC runs',
+        '1.5mm² H07RN-F 3-core for light-duty circuits',
+      ],
+      regulations: [
+        'BS 7671 721.415.1 & 721.43.1: Type A 30mA RCD + DP MCBs required.',
+        'BS 7671 721.528.1: AC and DC cables must be run separately.',
+        'BS 7671 416.2.2: IP rating — no live parts accessible.',
+        'BS 7671 421.1.201: Consumer units must be non-combustible (metal).',
+      ],
+      warnings: [
+        '230V IS EXTREMELY HAZARDOUS. This section should be completed by a qualified electrician.',
+      ],
+    });
+  }
+
+  // ── 12. Earthing & Bonding ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Earthing & Protective Bonding',
+    instructions: [
+      `Connect the negative busbar to the vehicle chassis using ${spec.earthingSpec.chassisGroundCable}mm² cable (minimum 35mm²).`,
+      `Connect the vehicle chassis to the AC consumer unit earth bar using ${spec.earthingSpec.bondingCable}mm² green/yellow bonding cable.`,
+      ...(hasInverter ? [
+        'Connect the inverter/charger casing ground to the negative busbar.',
+      ] : []),
+      'Affix "Safety Electrical Connection: Do Not Remove" labels to all earth/bonding connections.',
+      ...(config.hasShore ? [
+        'Affix a PDU (Particulars of Distribution Unit) sticker near the consumer unit.',
+      ] : []),
+      'If LPG is installed: fit an 8mm² bonding clamp to the copper pipes near the LPG cylinder and bond to the consumer unit earth bar.',
+    ],
+    cableSpecs: [
+      `Chassis ground: ≥35mm² black to chassis`,
+      `Bonding cable: 4mm² tri-rated green/yellow`,
+    ],
+    regulations: [
+      'BS 7671 411.3.1.2: Main protective bonding to earthing terminal.',
+      'Label on ground must be stacked on top of lug when fixed to chassis.',
+    ],
+  });
+
+  // ── 13. Device Configuration ──
+  const configSteps: string[] = [];
+  for (const action of spec.actions) {
+    configSteps.push(action.text);
+  }
+  if (configSteps.length > 0) {
+    steps.push({
+      stepNumber: next(),
+      title: 'Device Configuration (via VictronConnect)',
+      instructions: [
+        'Download the VictronConnect app on your smartphone.',
+        'Connect to each device via Bluetooth and configure as follows:',
+        ...configSteps.map(s => `• ${s}`),
+      ],
+    });
+  }
+
+  // ── 14. Final Connection & Testing ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Final Battery Connection & Testing',
+    instructions: [
+      'Ensure the battery isolator is in the OFF position.',
+      'Connect the main positive cable to the battery positive terminal.',
+      'Connect the main negative cable to the battery negative terminal.',
+      'Fit insulated terminal covers over the battery terminals.',
+      'Turn on the battery isolator.',
+      'Use a multimeter to verify voltage at the distribution busbar.',
+      'Check all connections are tight to their specified torque values.',
+      ...(config.hasShore ? [
+        'Connect shore power and verify RCD trips correctly using the test button.',
+        'Test AC output at each socket with a socket tester.',
+      ] : []),
+      ...(config.solarWatts > 0 ? [
+        'Uncover solar panels and verify MPPT is charging (check via VictronConnect).',
+      ] : []),
+      'Run a full load test and check for voltage drop at the inverter DC terminals (should be < 0.3V / 2.5%).',
+    ],
+    warnings: [
+      'Always isolate all power sources before making any changes after initial commissioning.',
+    ],
+  });
+
+  // ── 15. Compliance ──
+  steps.push({
+    stepNumber: next(),
+    title: 'Regulatory Compliance & Certification',
+    instructions: [
+      'Arrange for an Electrical Installation Certificate (EIC) to be issued by a qualified electrician before first use.',
+      'Ensure all cable runs are supported at maximum intervals of 250mm (horizontal) and 400mm (vertical).',
+      'Verify all cable glands are fitted and IP ratings are maintained on all enclosures.',
+      'Confirm all safety labels are in place.',
+      'Keep a copy of this wiring schematic, shopping list, and installation guide with the vehicle documentation.',
+    ],
+    regulations: [
+      'BS 7671: EIC required prior to first use.',
+      'BS EN 1648-1:2018 5.3.4: Cable support intervals.',
+    ],
+  });
+
+  return steps;
+}
