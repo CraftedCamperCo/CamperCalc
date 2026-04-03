@@ -85,9 +85,9 @@ export const GAUGE_STROKE: Record<WireGauge, number> = {
   '10':  4.5,
   '16':  6.0,
   '25':  8.0,
-  '35':  10.0,
-  '50':  13.0,
-  '70':  16.0,
+  '35':  7.0,
+  '50':  9.0,
+  '70':  11.0,
 };
 
 /** Rules for a single port on a component */

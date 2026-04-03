@@ -34,7 +34,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
-function getCustomerFirstName(user) {
+function getCustomerFirstName(user: any) {
   return user?.user_metadata?.first_name || '';
 }
 
@@ -47,11 +47,11 @@ export default function SchematicDetailScreen() {
   const params = useLocalSearchParams();
 
   const hasShore = params.hasShore === 'true';
-  const cableRun = (params.cableRun ?? 'medium');
+  const cableRun = ((params.cableRun as string) ?? 'medium') as CableRunLength;
   const useLynx = params.useLynx === 'true';
 
   const [exporting, setExporting] = useState(false);
-  const [imageMap, setImageMap] = useState({});
+  const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function SchematicDetailScreen() {
     ? (state.customAppliances || []).map((a) => a.name)
     : [];
 
-  const wiringConfig = buildSpec ? {
+  const wiringConfig: SystemConfig | null = buildSpec ? {
     batteryAh: buildSpec.recommendedBankAh,
     inverterVA: needs240v
       ? (buildSpec.inverterSize <= 1000 ? 800 : buildSpec.inverterSize <= 2000 ? 2000 : 3000)
@@ -102,7 +102,7 @@ export default function SchematicDetailScreen() {
     return generateSchematicWebviewHTML(wiringSpec, wiringConfig, imageMap);
   }, [wiringSpec, wiringConfig, imagesLoaded, imageMap]);
 
-  async function handleExport(method) {
+  async function handleExport(method: 'share' | 'email') {
     if (!wiringSpec || !wiringConfig) return;
     if (!imagesLoaded) {
       Alert.alert('Loading', 'Component images are still loading. Please wait a moment and try again.');
@@ -124,7 +124,7 @@ export default function SchematicDetailScreen() {
         const canEmail = await MailComposer.isAvailableAsync();
         if (canEmail) {
           const existing = getCustomerFirstName(user);
-          const sendEmail = async (name) => {
+          const sendEmail = async (name: string) => {
             const greeting = name ? 'Hi ' + name + ',' : 'Hi,';
             await MailComposer.composeAsync({
               subject,
@@ -137,14 +137,14 @@ export default function SchematicDetailScreen() {
           } else {
             Alert.prompt('Your name', 'Enter your first name', [
               { text: 'Skip', style: 'cancel', onPress: () => sendEmail('') },
-              { text: 'Save', onPress: (name) => { if (name?.trim()) updateProfile(name.trim()).catch(() => {}); sendEmail(name?.trim() || ''); }},
+              { text: 'Save', onPress: (name?: string) => { if (name?.trim()) updateProfile(name.trim()).catch(() => {}); sendEmail(name?.trim() || ''); }},
             ], 'plain-text', '', 'default');
           }
         } else {
           await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       Alert.alert('Export failed', e?.message ?? 'Unknown error');
     } finally {
       setExporting(false);
@@ -177,12 +177,6 @@ export default function SchematicDetailScreen() {
             </>
           )}
         </View>
-      </View>
-      <View style={styles.discountBar}>
-        <MaterialCommunityIcons name="book-open-variant" size={13} color="#2E4C3D" />
-        <Text style={styles.discountText}>
-          £75 bespoke package: full wiring schematic + installation instructions, tailored to this build.
-        </Text>
       </View>
       {wiringSpec && wiringConfig && webviewHTML ? (
         Platform.OS === 'web' ? (
@@ -257,12 +251,6 @@ const styles = StyleSheet.create({
   headerSub: { color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', minWidth: 70, justifyContent: 'flex-end' },
   actionBtn: { padding: 6 },
-  discountBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: 'rgba(46,76,61,0.25)', paddingHorizontal: 14, paddingVertical: 7,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(46,76,61,0.35)',
-  },
-  discountText: { color: '#7EC8A0', fontSize: 11, flex: 1, lineHeight: 15 },
   canvas: { flex: 1, backgroundColor: '#F8F9FA' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10 },
   emptyText: { color: 'rgba(255,255,255,0.4)', fontSize: 16, fontWeight: '700' },

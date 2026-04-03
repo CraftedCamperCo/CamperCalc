@@ -56,16 +56,16 @@ function gaugeToStroke(g: number): number {
     '10': 4.5,
     '16': 6.0,
     '25': 8.0,
-    '35': 10.0,
-    '50': 13.0,
-    '70': 16.0,
+    '35': 7.0,
+    '50': 9.0,
+    '70': 11.0,
   };
   const exact = exactScale[gaugeKey];
   if (typeof exact === 'number') return exact;
 
-  if (g >= 70) return 16.0;
-  if (g >= 50) return 13.0;
-  if (g >= 35) return 10.0;
+  if (g >= 70) return 11.0;
+  if (g >= 50) return 9.0;
+  if (g >= 35) return 7.0;
   if (g >= 25) return 8.0;
   if (g >= 16) return 6.0;
   if (g >= 10) return 4.5;
@@ -904,7 +904,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   const S_L = Math.max(PAGE_PAD_X, LEFT_EDGE_MIN_X), S_R = W - 40, S_T = 34, S_B = FOOTER_Y - 8;
   const S_W = S_R - S_L, S_H = S_B - S_T;
-  const GAP = 100;
+  const GAP = 85;
 
   // Scaled component geometry (~62%) to create whitespace for routing.
   const BAT_UNIT_W = scaleDim(140, 64);
@@ -1041,13 +1041,13 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const invY = hasInv ? distY + Math.floor((distH - INV_H) / 2) : 0;
 
   // ── AC chain (right column — stacked vertically) ──
-  const shoreX = hasShore ? S_R - SHORE_W - 6 : 0;
+  const shoreX = hasShore ? S_R - SHORE_W - 40 : 0;
   const shoreY = hasShore ? S_T + 8 : 0;
-  const cuInX = hasShore ? Math.min(colX['ac'], S_R - CU_W) : 0;
+  const cuInX = hasShore ? Math.min(colX['ac'], S_R - CU_W - 30) : 0;
   const cuInY = hasShore ? distY + 10 : 0;
-  const cuOutX = hasShore ? Math.min(colX['ac'], S_R - CU_W) : 0;
+  const cuOutX = hasShore ? Math.min(colX['ac'], S_R - CU_W - 30) : 0;
   const cuOutY = hasShore ? cuInY + CU_H + GAP : 0;
-  const acLoadsX = hasShore ? Math.min(colX['ac'] + Math.floor((CU_W - AC_LOADS_W) / 2), S_R - AC_LOADS_W) : 0;
+  const acLoadsX = hasShore ? Math.min(colX['ac'] + Math.floor((CU_W - AC_LOADS_W) / 2), S_R - AC_LOADS_W - 30) : 0;
   const acLoadsY = hasShore ? cuOutY + CU_H + Math.floor(GAP / 2) : 0;
 
   // ── Solar/MPPT chain (left → right row: Solar → PV Isolator → MPPT) ──
@@ -1080,18 +1080,23 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   // ── Earth bar + ground (bottom of schematic) ──
   const earthBarW = Math.max(scaleDim(140, 90), earthCount * 24 + 20);
-  const earthBarX = Math.max(
+  const earthBarXBase = Math.max(
     S_L + 20,
     Math.min(S_R - earthBarW - 20, hasLynx ? distX + distW - earthBarW - 10 : distX + Math.floor(distW * 0.72))
   );
+  const earthBarX = hasShore ? Math.max(earthBarXBase, S_R - earthBarW - 220) : earthBarXBase;
   const earthBarY = Math.max(bpY + FB_H + GAP, S_B - 16 - 10 - 25 - 5);
+  // ═══ VERTICAL SAFETY CLAMP ═══
+  // Ensure no component is placed below S_B or above S_T
+  const clampY = (y: number, h: number) => Math.min(S_B - h - 10, Math.max(S_T + 10, y));
+  const earthBarYClamped = clampY(Math.min(S_B - 30, earthBarY), 16);
   const groundX = earthBarX + Math.floor(earthBarW / 2) - 20;
-  const groundY = earthBarY + 16 + 8;
+  const groundY = Math.min(S_B - 10, earthBarYClamped + 16 + 8);
 
   // Routing corridors + keep-out zones (used by adaptive wire routing)
   const corridors = {
     topY: S_T + 10,
-    bottomY: earthBarY - 14,
+    bottomY: earthBarYClamped - 14,
     leftX: S_L + 6,
     rightX: S_R - 8,
   };
@@ -1160,13 +1165,13 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     switch (kind) {
       case 'dc_hi':
         local.topY = S_T + 4;
-        local.bottomY = earthBarY - 30;
+        local.bottomY = earthBarYClamped - 30;
         local.leftX = S_L + 24;
         local.rightX = S_R - 20;
         break;
       case 'dc_lo':
         local.topY = S_T + 16;
-        local.bottomY = earthBarY - 22;
+        local.bottomY = earthBarYClamped - 22;
         if (hasMPPT) {
           local.topY = Math.max(local.topY, solarY + 118);
         }
@@ -1175,22 +1180,22 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
         local.rightX = S_R - 22;
         local.leftX = Math.max(local.leftX, hasInv ? invX + Math.floor(INV_W * 0.4) : distX + distW + 20);
         local.topY = S_T + 18;
-        local.bottomY = earthBarY - 16;
+        local.bottomY = earthBarYClamped - 16;
         break;
       case 'ac_out':
         local.rightX = S_R - 22;
         local.leftX = Math.max(local.leftX, hasInv ? invX + Math.floor(INV_W * 0.4) : distX + distW + 20);
         local.topY = S_T + 18;
-        local.bottomY = earthBarY - 14;
+        local.bottomY = earthBarYClamped - 14;
         break;
       case 'earth':
-        local.bottomY = earthBarY + 10;
+        local.bottomY = earthBarYClamped + 10;
         local.leftX = S_L + 24;
         local.rightX = S_R - 22;
         break;
       case 'signal':
         local.topY = S_T + 24;
-        local.bottomY = earthBarY - 28;
+        local.bottomY = earthBarYClamped - 28;
         break;
     }
     // Deterministic lane spread to avoid stacking parallel runs in same corridor.
@@ -1201,7 +1206,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     local.bottomY += spread;
     local.leftX += spread;
     local.rightX -= spread;
-    const frame: CorridorFrame = { minLeft: S_L + 24, maxRight: S_R - 20, minTop: S_T + 4, maxBottom: earthBarY + 12 };
+    const frame: CorridorFrame = { minLeft: S_L + 24, maxRight: S_R - 40, minTop: S_T + 4, maxBottom: Math.min(S_B - 10, earthBarYClamped + 12) };
     Object.assign(local, clampCorridors(local, frame));
     // Enforce short straight exit/entry at component ports before first bend.
     // Ports can sit a few px outside a body image; still treat them as attached.
@@ -1228,29 +1233,29 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     };
 
     // Universal halos — apply to ALL nets, ALL configurations
-    if (hasLynx) addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 32, 26);
-    else addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 18, 15);
-    if (hasInv) addHalo({ x: invX, y: invY, w: INV_W, h: INV_H }, 36, 30);
+    if (hasLynx) addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 22, 18);
+    else addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 12, 10);
+    if (hasInv) addHalo({ x: invX, y: invY, w: INV_W, h: INV_H }, 24, 18);
     if (hasMPPT) {
-      addHalo({ x: mpptX, y: mpptY, w: MPPT_W, h: MPPT_H }, 24, 20);
-      addHalo({ x: solarX, y: solarY, w: solarPanelW, h: SOLAR_PANEL_H + 7 }, 12, 12);
-      addHalo({ x: pvDiscX, y: pvDiscY, w: PVDISC_W, h: PVDISC_H }, 12, 12);
+      addHalo({ x: mpptX, y: mpptY, w: MPPT_W, h: MPPT_H }, 16, 14);
+      addHalo({ x: solarX, y: solarY, w: solarPanelW, h: SOLAR_PANEL_H + 7 }, 8, 8);
+      addHalo({ x: pvDiscX, y: pvDiscY, w: PVDISC_W, h: PVDISC_H }, 8, 8);
     }
-    addHalo({ x: fbX, y: fbY, w: FB_W, h: FB_H }, 20, 18);
-    addHalo({ x: batX, y: batY - 8, w: batW, h: BAT_H + 8 }, 20, 18);
-    addHalo({ x: shuntX, y: shuntY, w: SHUNT_W, h: SHUNT_H }, 16, 12);
-    addHalo({ x: isoX, y: isoY, w: ISO_W, h: ISO_H }, 12, 12);
-    addHalo({ x: midiX, y: midiY, w: MIDI_W, h: MIDI_H }, 10, 10);
+    addHalo({ x: fbX, y: fbY, w: FB_W, h: FB_H }, 14, 12);
+    addHalo({ x: batX, y: batY - 8, w: batW, h: BAT_H + 8 }, 14, 12);
+    addHalo({ x: shuntX, y: shuntY, w: SHUNT_W, h: SHUNT_H }, 10, 8);
+    addHalo({ x: isoX, y: isoY, w: ISO_W, h: ISO_H }, 8, 8);
+    addHalo({ x: midiX, y: midiY, w: MIDI_W, h: MIDI_H }, 6, 6);
     if (hasDC) {
-      addHalo({ x: dcdcX, y: dcdcY, w: DCDC_W, h: DCDC_H }, 18, 15);
-      addHalo({ x: starterX, y: starterY, w: STARTER_W, h: STARTER_H }, 16, 12);
+      addHalo({ x: dcdcX, y: dcdcY, w: DCDC_W, h: DCDC_H }, 12, 10);
+      addHalo({ x: starterX, y: starterY, w: STARTER_W, h: STARTER_H }, 10, 8);
     }
-    if (bpC) addHalo({ x: bpX, y: bpY, w: BP_W, h: BP_H }, 16, 12);
+    if (bpC) addHalo({ x: bpX, y: bpY, w: BP_W, h: BP_H }, 10, 8);
     if (hasShore) {
-      addHalo({ x: shoreX, y: shoreY, w: SHORE_W, h: SHORE_H }, 10, 10);
-      addHalo({ x: cuInX, y: cuInY, w: CU_W, h: CU_H }, 18, 15);
-      addHalo({ x: cuOutX, y: cuOutY, w: CU_W, h: CU_H }, 18, 15);
-      addHalo({ x: acLoadsX, y: acLoadsY, w: AC_LOADS_W, h: AC_LOADS_H }, 12, 12);
+      addHalo({ x: shoreX, y: shoreY, w: SHORE_W, h: SHORE_H }, 6, 6);
+      addHalo({ x: cuInX, y: cuInY, w: CU_W, h: CU_H }, 12, 10);
+      addHalo({ x: cuOutX, y: cuOutY, w: CU_W, h: CU_H }, 12, 10);
+      addHalo({ x: acLoadsX, y: acLoadsY, w: AC_LOADS_W, h: AC_LOADS_H }, 8, 8);
     }
     let routeRects = [...routingRects, ...hardRects];
     // Soft keep-out for already placed labels/pills to avoid running over text.
@@ -1566,9 +1571,9 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   svg += placeComponent('fuse_block', 'fuse_block', fbX + Math.floor(FB_W / 2), fbY + Math.floor(FB_H / 2), FB_W, FB_H);
   svg += componentNumber(fbX + 14, fbY + 14, N_FB);
 
-  svg += placeComponent('earth_bar', 'earth_bar', earthBarX + earthBarW / 2, earthBarY + 8, earthBarW, 16);
+  svg += placeComponent('earth_bar', 'earth_bar', earthBarX + earthBarW / 2, earthBarYClamped + 8, earthBarW, 16);
   svg += groundSymbol(groundX, groundY);
-  svg += componentNumber(earthBarX + 14, earthBarY + 8, N_EARTH);
+  svg += componentNumber(earthBarX + 14, earthBarYClamped + 8, N_EARTH);
 
   if (hasShore) {
     svg += placeComponent('shore_inlet', 'shore_inlet', shoreX + Math.floor(SHORE_W / 2), shoreY + Math.floor(SHORE_H / 2), SHORE_W, SHORE_H);
@@ -1609,7 +1614,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     svg += `<text x="${dcdcCenterX}" y="${dcdcY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">ALTERNATOR CHARGING</text>`;
   }
 
-  svg += `<text x="${earthBarX + earthBarW / 2}" y="${earthBarY - 10}" text-anchor="middle" font-size="7" fill="#27AE60" font-weight="700">EARTH / CHASSIS BOND</text>`;
+  svg += `<text x="${earthBarX + earthBarW / 2}" y="${earthBarYClamped - 10}" text-anchor="middle" font-size="7" fill="#27AE60" font-weight="700">EARTH / CHASSIS BOND</text>`;
 
   // ═══ WIRES (no verbose labels — gauge badges only) ═══
 
@@ -1926,7 +1931,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       <rect x="0" y="0" width="42" height="20" rx="3" fill="#FFF3E0" stroke="#E67E22"/>
       <text x="21" y="14" text-anchor="middle" font-size="6" fill="#E67E22" font-weight="700">LPG</text>
     </g>`;
-    placedPorts.earth_bar.lpg_bond = { x: earthBarX + 12 + (earthCount - 1) * 24, y: earthBarY + 8 };
+    placedPorts.earth_bar.lpg_bond = { x: earthBarX + 12 + (earthCount - 1) * 24, y: earthBarYClamped + 8 };
     svg += drawRuleWire({
       fromId: 'lpg_node',
       fromPort: 'earth',
