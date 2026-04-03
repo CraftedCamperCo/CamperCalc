@@ -5,7 +5,6 @@
  * Clean wire routing with gauge-only labels (no verbose descriptions).
  * Regulation boxes stacked in left margin. Sidebar for key/legend/glossary.
  */
-import type { WiringSpec, SystemConfig, WireConnection } from './wiringTypes';
 import { drawComponent, type ComponentSpec } from './schematicComponents';
 import {
   COMPONENT_RULES,
@@ -16,6 +15,7 @@ import {
   getPortRule,
   type WireGauge,
 } from './schematicRules';
+import type { SystemConfig, WireConnection, WiringSpec } from './wiringTypes';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 1. HELPERS
@@ -25,7 +25,6 @@ interface Pt { x: number; y: number }
 interface Rect { x: number; y: number; w: number; h: number }
 type NetClass = 'dc_hi' | 'dc_lo' | 'ac_in' | 'ac_out' | 'earth' | 'signal';
 interface Seg { a: Pt; b: Pt; cls: NetClass | 'unknown' }
-type Dir = 'left' | 'right' | 'up' | 'down';
 
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.split(' ');
@@ -79,10 +78,7 @@ const WC = { red: '#C0392B', blk: '#2C3E50', gn: '#27AE60', brn: '#8B4513', blu:
 const STUB = 20;
 const COMPONENT_SCALE = 0.72;
 const LEFT_EDGE_MIN_X = 60;
-const MIN_ROUTING_CLEARANCE = 30;
 const scaleDim = (v: number, min = 10) => Math.max(min, Math.round(v * COMPONENT_SCALE));
-// Shared terminal reference maps for visual/routing alignment.
-const LYNX_PORT_X = [56, 104, 152, 200] as const;
 // ENGINE RULE: MultiPlus port positions match the real product bottom edge.
 // All ports clustered in the right-centre ~40% of the unit width, not spread
 // across the full width. Order left→right: AC-Out, AC-In, Earth, DC−, DC+
@@ -133,297 +129,7 @@ function findW(cs: WireConnection[], ...kw: string[]) {
   return cs.find(w => kw.every(k => w.label.toLowerCase().includes(k.toLowerCase())));
 }
 
-function pointInRect(p: Pt, r: Rect, pad = 2): boolean {
-  return p.x >= r.x - pad && p.x <= r.x + r.w + pad && p.y >= r.y - pad && p.y <= r.y + r.h + pad;
-}
-
-function nearestContainingRect(p: Pt, rects: Rect[]): Rect | undefined {
-  let best: Rect | undefined;
-  let bestDist = Number.POSITIVE_INFINITY;
-  for (const r of rects) {
-    if (!pointInRect(p, r, 2)) continue;
-    const dL = Math.abs(p.x - r.x);
-    const dR = Math.abs((r.x + r.w) - p.x);
-    const dT = Math.abs(p.y - r.y);
-    const dB = Math.abs((r.y + r.h) - p.y);
-    const d = Math.min(dL, dR, dT, dB);
-    if (d < bestDist) { bestDist = d; best = r; }
-  }
-  return best;
-}
-
-function rectDistance(p: Pt, r: Rect): number {
-  const dx = p.x < r.x ? r.x - p.x : p.x > r.x + r.w ? p.x - (r.x + r.w) : 0;
-  const dy = p.y < r.y ? r.y - p.y : p.y > r.y + r.h ? p.y - (r.y + r.h) : 0;
-  return Math.hypot(dx, dy);
-}
-
-function nearestRectNearPoint(p: Pt, rects: Rect[], maxDist = 10): Rect | undefined {
-  let best: Rect | undefined;
-  let bestD = Number.POSITIVE_INFINITY;
-  for (const r of rects) {
-    const d = rectDistance(p, r);
-    if (d <= maxDist && d < bestD) {
-      bestD = d;
-      best = r;
-    }
-  }
-  return best;
-}
-
-function escapeFromRect(p: Pt, target: Pt, r: Rect, len = 12): { p: Pt; dir: Dir } {
-  const dL = Math.abs(p.x - r.x);
-  const dR = Math.abs((r.x + r.w) - p.x);
-  const dT = Math.abs(p.y - r.y);
-  const dB = Math.abs((r.y + r.h) - p.y);
-  const minD = Math.min(dL, dR, dT, dB);
-
-  // If very close to an edge, use that edge direction.
-  if (minD === dL) return { p: { x: r.x - len, y: p.y }, dir: 'left' };
-  if (minD === dR) return { p: { x: r.x + r.w + len, y: p.y }, dir: 'right' };
-  if (minD === dT) return { p: { x: p.x, y: r.y - len }, dir: 'up' };
-  if (minD === dB) return { p: { x: p.x, y: r.y + r.h + len }, dir: 'down' };
-
-  // Fallback toward target direction.
-  if (Math.abs(target.x - p.x) >= Math.abs(target.y - p.y)) {
-    return target.x >= p.x
-      ? { p: { x: r.x + r.w + len, y: p.y }, dir: 'right' }
-      : { p: { x: r.x - len, y: p.y }, dir: 'left' };
-  }
-  return target.y >= p.y
-    ? { p: { x: p.x, y: r.y + r.h + len }, dir: 'down' }
-    : { p: { x: p.x, y: r.y - len }, dir: 'up' };
-}
-
-function segmentIntersectsRect(a: Pt, b: Pt, r: Rect, pad = 6): boolean {
-  const rx = r.x - pad;
-  const ry = r.y - pad;
-  const rw = r.w + pad * 2;
-  const rh = r.h + pad * 2;
-
-  // Orthogonal-only checks
-  if (a.x === b.x) {
-    const x = a.x;
-    const y1 = Math.min(a.y, b.y);
-    const y2 = Math.max(a.y, b.y);
-    return x >= rx && x <= rx + rw && y2 >= ry && y1 <= ry + rh;
-  }
-  if (a.y === b.y) {
-    const y = a.y;
-    const x1 = Math.min(a.x, b.x);
-    const x2 = Math.max(a.x, b.x);
-    return y >= ry && y <= ry + rh && x2 >= rx && x1 <= rx + rw;
-  }
-  return false;
-}
-
-function pathCollisionCount(points: Pt[], rects: Rect[], pad = 6): number {
-  const p = simplifyPolyline(points);
-  let hits = 0;
-  for (let i = 0; i < p.length - 1; i++) {
-    const a = p[i];
-    const b = p[i + 1];
-    for (const r of rects) {
-      if (segmentIntersectsRect(a, b, r, pad)) hits++;
-    }
-  }
-  return hits;
-}
-
-const netPriority: Record<NetClass | 'unknown', number> = {
-  dc_hi: 6,
-  dc_lo: 5,
-  ac_in: 4,
-  ac_out: 3,
-  earth: 2,
-  signal: 1,
-  unknown: 0,
-};
-
-function segCrowdingPenalty(a: Pt, b: Pt, existing: Seg[], currentClass: NetClass | 'unknown'): number {
-  let p = 0;
-  for (const s of existing) {
-    const curP = netPriority[currentClass];
-    const existingP = netPriority[s.cls];
-    // Lower-priority nets should yield to already-routed higher-priority nets.
-    const priorityMul = curP < existingP ? 1.8 : curP > existingP ? 0.75 : 1.0;
-
-    // direct crossing penalty
-    if (a.x === b.x && s.a.y === s.b.y) {
-      const x = a.x;
-      const y1 = Math.min(a.y, b.y);
-      const y2 = Math.max(a.y, b.y);
-      const sx1 = Math.min(s.a.x, s.b.x);
-      const sx2 = Math.max(s.a.x, s.b.x);
-      const sy = s.a.y;
-      if (x >= sx1 && x <= sx2 && sy >= y1 && sy <= y2) p += 110 * priorityMul;
-    } else if (a.y === b.y && s.a.x === s.b.x) {
-      const y = a.y;
-      const x1 = Math.min(a.x, b.x);
-      const x2 = Math.max(a.x, b.x);
-      const sx = s.a.x;
-      const sy1 = Math.min(s.a.y, s.b.y);
-      const sy2 = Math.max(s.a.y, s.b.y);
-      if (y >= sy1 && y <= sy2 && sx >= x1 && sx <= x2) p += 110 * priorityMul;
-    }
-    // same-lane parallel crowding penalty
-    if (a.x === b.x && s.a.x === s.b.x) {
-      const dx = Math.abs(a.x - s.a.x);
-      if (dx <= 8) {
-        const y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
-        const sy1 = Math.min(s.a.y, s.b.y), sy2 = Math.max(s.a.y, s.b.y);
-        if (y2 >= sy1 && y1 <= sy2) p += 60 * priorityMul;
-      }
-    }
-    if (a.y === b.y && s.a.y === s.b.y) {
-      const dy = Math.abs(a.y - s.a.y);
-      if (dy <= 8) {
-        const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
-        const sx1 = Math.min(s.a.x, s.b.x), sx2 = Math.max(s.a.x, s.b.x);
-        if (x2 >= sx1 && x1 <= sx2) p += 60 * priorityMul;
-      }
-    }
-  }
-  return p;
-}
-
-function pathCrowdingPenalty(points: Pt[], existing: Seg[], currentClass: NetClass | 'unknown'): number {
-  const p = simplifyPolyline(points);
-  let total = 0;
-  for (let i = 0; i < p.length - 1; i++) {
-    total += segCrowdingPenalty(p[i], p[i + 1], existing, currentClass);
-  }
-  return total;
-}
-
-function intervalOverlapLen(a1: number, a2: number, b1: number, b2: number): number {
-  const lo = Math.max(Math.min(a1, a2), Math.min(b1, b2));
-  const hi = Math.min(Math.max(a1, a2), Math.max(b1, b2));
-  return Math.max(0, hi - lo);
-}
-
-// Hard clarity rule: allow crossings, disallow "run-along" stacked segments.
-function segRunAlongCount(a: Pt, b: Pt, existing: Seg[], tol = 2, minRun = 10): number {
-  let hits = 0;
-  for (const s of existing) {
-    // Vertical collinear (or near-collinear) overlap.
-    if (a.x === b.x && s.a.x === s.b.x) {
-      if (Math.abs(a.x - s.a.x) <= tol) {
-        const ov = intervalOverlapLen(a.y, b.y, s.a.y, s.b.y);
-        if (ov >= minRun) hits++;
-      }
-    }
-    // Horizontal collinear (or near-collinear) overlap.
-    if (a.y === b.y && s.a.y === s.b.y) {
-      if (Math.abs(a.y - s.a.y) <= tol) {
-        const ov = intervalOverlapLen(a.x, b.x, s.a.x, s.b.x);
-        if (ov >= minRun) hits++;
-      }
-    }
-  }
-  return hits;
-}
-
-function pathRunAlongCount(points: Pt[], existing: Seg[], tol = 2, minRun = 10): number {
-  const p = simplifyPolyline(points);
-  let total = 0;
-  for (let i = 0; i < p.length - 1; i++) {
-    total += segRunAlongCount(p[i], p[i + 1], existing, tol, minRun);
-  }
-  return total;
-}
-
 type RouteHint = 'auto' | 'top' | 'bottom' | 'left' | 'right';
-
-interface CorridorBounds { topY: number; bottomY: number; leftX: number; rightX: number }
-interface CorridorFrame { minLeft: number; maxRight: number; minTop: number; maxBottom: number }
-
-function clampCorridors(c: CorridorBounds, f: CorridorFrame): CorridorBounds {
-  return {
-    leftX: Math.max(f.minLeft, Math.min(c.leftX, f.maxRight - 24)),
-    rightX: Math.min(f.maxRight, Math.max(c.rightX, f.minLeft + 24)),
-    topY: Math.max(f.minTop, Math.min(c.topY, f.maxBottom - 24)),
-    bottomY: Math.min(f.maxBottom, Math.max(c.bottomY, f.minTop + 24)),
-  };
-}
-
-function routeOrthogonal(
-  from: Pt,
-  to: Pt,
-  rects: Rect[],
-  corridors: { topY: number; bottomY: number; leftX: number; rightX: number },
-  hint: RouteHint = 'auto',
-  existingSegs: Seg[] = [],
-  netClass: NetClass | 'unknown' = 'unknown',
-  hardNoCrossRects: Rect[] = []
-): Pt[] {
-  // ═══ PERIMETER-FIRST ROUTING STRATEGY ═══
-  // Professional schematics route around component clusters, not through them.
-  const candidates: Pt[][] = [];
-  const a = from;
-  const b = to;
-  const topHighwayY = corridors.topY;
-  const bottomHighwayY = corridors.bottomY;
-  const leftHighwayX = corridors.leftX;
-  const rightHighwayX = corridors.rightX;
-
-  // Tier 1: perimeter routes (preferred)
-  const perimTop = [{ x: a.x, y: topHighwayY }, { x: b.x, y: topHighwayY }];
-  const perimBottom = [{ x: a.x, y: bottomHighwayY }, { x: b.x, y: bottomHighwayY }];
-  const perimLeft = [{ x: leftHighwayX, y: a.y }, { x: leftHighwayX, y: b.y }];
-  const perimRight = [{ x: rightHighwayX, y: a.y }, { x: rightHighwayX, y: b.y }];
-
-  // Tier 2: direct routes (only when reasonably aligned)
-  const sameRow = Math.abs(a.y - b.y) < 80;
-  const sameCol = Math.abs(a.x - b.x) < 80;
-  const directH = [{ x: b.x, y: a.y }];
-  const directV = [{ x: a.x, y: b.y }];
-
-  // Tier 3: L routes
-  const hv = [{ x: b.x, y: a.y }];
-  const vh = [{ x: a.x, y: b.y }];
-
-  // Tier 4: combined perimeter detours
-  const topRight = [{ x: a.x, y: topHighwayY }, { x: rightHighwayX, y: topHighwayY }, { x: rightHighwayX, y: b.y }];
-  const topLeft = [{ x: a.x, y: topHighwayY }, { x: leftHighwayX, y: topHighwayY }, { x: leftHighwayX, y: b.y }];
-  const bottomRight = [{ x: a.x, y: bottomHighwayY }, { x: rightHighwayX, y: bottomHighwayY }, { x: rightHighwayX, y: b.y }];
-  const bottomLeft = [{ x: a.x, y: bottomHighwayY }, { x: leftHighwayX, y: bottomHighwayY }, { x: leftHighwayX, y: b.y }];
-
-  if (hint === 'top') candidates.push(perimTop, perimRight, perimLeft, perimBottom);
-  else if (hint === 'bottom') candidates.push(perimBottom, perimRight, perimLeft, perimTop);
-  else if (hint === 'left') candidates.push(perimLeft, perimTop, perimBottom, perimRight);
-  else if (hint === 'right') candidates.push(perimRight, perimTop, perimBottom, perimLeft);
-  else candidates.push(perimTop, perimBottom, perimLeft, perimRight);
-
-  if (sameRow) candidates.push(directH);
-  if (sameCol) candidates.push(directV);
-  candidates.push(hv, vh, topRight, topLeft, bottomRight, bottomLeft);
-
-  let best = hv;
-  let bestH = Infinity, bestS = Infinity, bestK = Infinity, bestC = Infinity, bestD = Infinity;
-  for (const waypoints of candidates) {
-    const pts = simplifyPolyline([from, ...waypoints, to]);
-    const h = pathCollisionCount(pts, hardNoCrossRects, 4);
-    const s = pathCollisionCount(pts, rects, 6);
-    const k = pathRunAlongCount(pts, existingSegs, 2, 10);
-    const c = pathCrowdingPenalty(pts, existingSegs, netClass);
-    const bends = Math.max(0, pts.length - 2);
-    const dist = pts.slice(0, -1).reduce((acc, p, i) => acc + Math.abs(p.x - pts[i + 1].x) + Math.abs(p.y - pts[i + 1].y), 0);
-    const d = bends * 40 + dist + c;
-    // Strict lexicographic: hard > soft > run-along > rest
-    if (
-      h < bestH ||
-      (h === bestH && s < bestS) ||
-      (h === bestH && s === bestS && k < bestK) ||
-      (h === bestH && s === bestS && k === bestK && d < bestD)
-    ) {
-      bestH = h; bestS = s; bestK = k; bestD = d;
-      best = pts.slice(1, -1);
-      if (h === 0 && s === 0 && k === 0) break;
-    }
-  }
-  return best;
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // 2. WIRE DRAWING (gauge labels only — no verbose description labels)
@@ -874,48 +580,22 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   // ═══ FIXED A4 LANDSCAPE CANVAS ═══
   const W = 1190;
   const H = 842;
+  const HWY = {
+    top: 55,
+    bottom: 770,
+    left: 45,
+    right: 1145,
+    neg: 700,
+  } as const;
 
-  // ═══ ZONE BOUNDARIES ═══
-  // Structural step: explicit bands (main schematic + right sidebar) for predictable scaling.
-  const PAGE_PAD_X = 20;
-  const SIDEBAR_W = 0;
-  const RIGHT_SIDEBAR_X = W - 20;
-  const FOOTER_Y = 820;
-
-  // ═══ ADAPTIVE LAYOUT ENGINE ═══
-  // All positions computed from feature flags — no hardcoded pixel values.
-  // When components are absent, remaining components spread to fill the space.
-
+  // Fixed canvas lower bound for ancillary symbols.
+  const S_B = 812;
   const solarCount = Math.ceil(config.solarWatts / 200);
   const earthCount = 3 + (hasInv ? 1 : 0) + (hasLPG ? 1 : 0);
-
-  const S_L = Math.max(PAGE_PAD_X, LEFT_EDGE_MIN_X), S_R = W - 40, S_T = 34, S_B = FOOTER_Y - 8;
-  const S_W = S_R - S_L, S_H = S_B - S_T;
-  const GAP = 85;
-  // ═══ PERIMETER WIRE HIGHWAYS ═══
-  // Dedicated routing corridors along canvas edges.
-  const HIGHWAY_TOP = S_T;
-  const HIGHWAY_TOP_END = S_T + 50;
-  const HIGHWAY_BOTTOM_START = S_B - 50;
-  const HIGHWAY_BOTTOM = S_B;
-  const HIGHWAY_LEFT = S_L;
-  const HIGHWAY_LEFT_END = S_L + 40;
-  const HIGHWAY_RIGHT_START = S_R - 40;
-  const HIGHWAY_RIGHT = S_R;
-  // Component safe area — keep components inside this frame.
-  const COMP_AREA_TOP = HIGHWAY_TOP_END + 10;
-  const COMP_AREA_BOTTOM = HIGHWAY_BOTTOM_START - 10;
-  const COMP_AREA_LEFT = HIGHWAY_LEFT_END + 10;
-  const COMP_AREA_RIGHT = HIGHWAY_RIGHT_START - 10;
-  const ROW1_CENTER_Y = COMP_AREA_TOP + 60;
-  const ROW2_CENTER_Y = Math.floor((COMP_AREA_TOP + COMP_AREA_BOTTOM) / 2);
-  const ROW3_CENTER_Y = COMP_AREA_BOTTOM - 60;
-  const MIN_COMP_GAP = 80;
 
   // Scaled component geometry (~62%) to create whitespace for routing.
   const BAT_UNIT_W = scaleDim(140, 64);
   const BAT_H = scaleDim(90, 44);
-  const BAT_PAIR_GAP = scaleDim(12, 8);
   const SHUNT_W = scaleDim(120, 56);
   const SHUNT_H = scaleDim(45, 24);
   const ISO_W = scaleDim(60, 30);
@@ -946,407 +626,94 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const AC_LOADS_H = scaleDim(42, 24);
   const SOLAR_PANEL_W = scaleDim(42, 26);
   const SOLAR_PANEL_H = scaleDim(55, 30);
-
-  const batW = BAT_UNIT_W * Math.min(batQty, 2) + (batQty > 1 ? BAT_PAIR_GAP : 0);
-  const distW = DIST_W;
-  const distH = DIST_H;
+  const DIM = {
+    battery: { w: BAT_UNIT_W, h: BAT_H },
+    smartshunt: { w: SHUNT_W, h: SHUNT_H },
+    midi_fuse: { w: MIDI_W, h: MIDI_H },
+    isolator: { w: ISO_W, h: ISO_H },
+    lynx: { w: DIST_W, h: DIST_H },
+    multiplus: { w: INV_W, h: INV_H },
+    mppt: { w: MPPT_W, h: MPPT_H },
+    orion: { w: DCDC_W, h: DCDC_H },
+    starter_bat: { w: STARTER_W, h: STARTER_H },
+    battery_protect: { w: BP_W, h: BP_H },
+    fuse_block: { w: FB_W, h: FB_H },
+    earth_bar: { w: Math.max(scaleDim(140, 90), earthCount * 24 + 20), h: 16 },
+    solar_panel: { w: SOLAR_PANEL_W, h: SOLAR_PANEL_H },
+    pv_disconnect: { w: PVDISC_W, h: PVDISC_H },
+    shore_inlet: { w: SHORE_W, h: SHORE_H },
+    consumer_unit: { w: CU_W, h: CU_H },
+    ac_loads: { w: AC_LOADS_W, h: AC_LOADS_H },
+  } as const;
+  const COL = { gen: 160, mgmt: 540, dist: 920 } as const;
+  const COL_BOUNDS = {
+    gen: { x: 0, w: 310 },
+    mgmt: { x: 330, w: 430 },
+    dist: { x: 780, w: 410 },
+  } as const;
+  const POS = {
+    battery_1: { cx: 530, cy: 720 },
+    battery_2: { cx: 640, cy: 720 },
+    smart_shunt: { cx: 660, cy: 610 },
+    main_midi_fuse: { cx: 430, cy: 560 },
+    battery_isolator: { cx: 430, cy: 635 },
+    distribution: { cx: 540, cy: 410 },
+    battery_protect: { cx: 740, cy: 410 },
+    fuse_block: { cx: 920, cy: 410 },
+    earth_bar: { cx: 530, cy: 800 },
+    solar_panel_1: { cx: 110, cy: 310 },
+    solar_panel_2: { cx: 160, cy: 310 },
+    solar_panel_3: { cx: 210, cy: 310 },
+    pv_disconnect: { cx: 140, cy: 380 },
+    mppt: { cx: 140, cy: 465 },
+    starter_battery: { cx: 90, cy: 600 },
+    dcdc: { cx: 210, cy: 600 },
+    inverter: { cx: 620, cy: 150 },
+    shore_inlet: { cx: 120, cy: 110 },
+    consumer_unit_in: { cx: 390, cy: 110 },
+    consumer_unit_out: { cx: 900, cy: 120 },
+    ac_loads: { cx: 900, cy: 240 },
+  } as const;
   const invPortX = (ratio: number) => Math.round(INV_W * ratio);
-  const lynxPosX = LYNX_PORT_X[0];
-  const lynxMpptX = LYNX_PORT_X[1];
-  const lynxDcdcX = LYNX_PORT_X[2];
-  const lynxLoadsX = LYNX_PORT_X[3];
-
-  // ── Horizontal columns: compute based on which groups exist ──
-  const cols: { id: string; w: number }[] = [];
-  cols.push({ id: 'bat', w: batW });
-  cols.push({ id: 'chain', w: scaleDim(70, 36) });
-  cols.push({ id: 'dist', w: distW });
-  if (hasInv) cols.push({ id: 'inv', w: INV_W });
-  if (hasShore) cols.push({ id: 'ac', w: CU_W });
-
-  // ENGINE RULE: Column layout must ALWAYS fit inside S_L..S_R.
-  // The old algorithm blindly shifted all columns left on overflow, which pushed
-  // the battery column to negative coordinates. This is the root cause of the
-  // left-boundary wire issue.
-  //
-  // New algorithm:
-  // 1. Try ideal spacing. If it fits, use it.
-  // 2. If it overflows, shrink gaps down to minimum (4px).
-  // 3. If still overflows, allow columns to overlap slightly rather than go off-screen.
-  // 4. HARD GUARANTEE: first column starts at S_L + 4, nothing goes negative.
-  const totalColW = cols.reduce((s, c) => s + c.w, 0);
-  const minGap = 16;
-  const idealGap = Math.floor((S_W - totalColW) / (cols.length + 1));
-  const colGap = Math.max(minGap, idealGap);
-
-  const colX: Record<string, number> = {};
-  let _cx = S_L + Math.max(minGap, colGap);
-  for (const c of cols) {
-    colX[c.id] = Math.max(S_L, _cx);
-    _cx += c.w + colGap;
-  }
-
-  // If layout still exceeds S_R, compress from right side only.
-  // Shift rightmost columns inward but NEVER push leftmost columns off-screen.
-  const lastRight = _cx - colGap;
-  if (lastRight > S_R) {
-    const excess = lastRight - S_R;
-    const n = cols.length;
-    // Distribute excess compression across all gaps, biased toward right side.
-    for (let i = 0; i < n; i++) {
-      const shift = Math.floor(excess * (i / Math.max(1, n - 1)));
-      colX[cols[i].id] = Math.max(S_L, colX[cols[i].id] - shift);
-    }
-  }
-
-  // Explicit layout zones with generous breathing lanes.
-  const zoneLeftX = COMP_AREA_LEFT;
-  const zoneCenterLeftX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.20);
-  const zoneCenterX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.40);
-  const zoneCenterRightX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.60);
-  const zoneRightX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.78);
-  colX.bat = Math.max(COMP_AREA_LEFT + 10, zoneLeftX);
-  colX.chain = Math.max(zoneCenterLeftX, colX.bat + batW + Math.floor(GAP / 2));
-  colX.dist = Math.max(zoneCenterX, colX.chain + scaleDim(70, 36) + Math.floor(GAP / 2));
-  if (hasInv) {
-    colX.inv = Math.max(zoneCenterRightX, colX.dist + distW + Math.floor(GAP / 2));
-  }
-  if (hasShore) {
-    const acFloor = hasInv ? colX.inv + INV_W + Math.floor(GAP / 2) : colX.dist + distW + Math.floor(GAP / 2);
-    colX.ac = Math.min(COMP_AREA_RIGHT - CU_W, Math.max(zoneRightX, acFloor));
-  }
-
-  // ── Vertical: compute hub Y so charging is above, loads below ──
-  const chargingH = Math.max(
-    hasMPPT ? (SOLAR_PANEL_H + 12 + PVDISC_H + 12 + MPPT_H + GAP) : 0,
-    hasDC ? (DCDC_H + GAP) : 0
-  );
-  const loadsH = BP_H + GAP + FB_H + GAP + 16 + 10 + 25;
-  const totalV = chargingH + distH + GAP + loadsH;
-  const vPad = Math.max(0, Math.floor((S_H - totalV) / 3));
-
-  const distY = Math.max(ROW1_CENTER_Y, Math.min(ROW2_CENTER_Y, S_T + vPad + chargingH));
-  const distX = colX['dist'];
-
-  // ── Battery + Shunt (left column, vertically centered on hub) ──
-  const batX = COMP_AREA_LEFT + 10;
-  const batY = Math.max(COMP_AREA_TOP, Math.min(COMP_AREA_BOTTOM - BAT_H, distY + Math.floor(distH / 2) - Math.floor(BAT_H / 2)));
-  // ENGINE RULE: Shunt (battery monitor) is placed well below the battery
-  // to leave clear wiring space around both components.
-  const shuntX = batX;
-  const shuntY = Math.min(ROW3_CENTER_Y - Math.floor(SHUNT_H / 2), batY + BAT_H + GAP + 20);
-
-  // ── Iso + MIDI (stacked, between battery and hub) ──
-  const isoX = Math.min(COMP_AREA_RIGHT - ISO_W, batX + batW + MIN_COMP_GAP);
-  const isoY = distY + (hasLynx ? 5 : 0);
-  const midiX = isoX;
-  const midiY = isoY + ISO_H + 12;
-
-  // ── Inverter (if present, vertically centered on hub) ──
-  const invX = hasInv ? Math.min(COMP_AREA_RIGHT - INV_W, distX + distW + MIN_COMP_GAP + 20) : 0;
-  const invY = hasInv ? distY + Math.floor((distH - INV_H) / 2) : 0;
-
-  // ── AC chain (right column — stacked vertically) ──
-  const shoreX = hasShore ? S_R - SHORE_W - 40 : 0;
-  const shoreY = hasShore ? S_T + 8 : 0;
-  const cuInX = hasShore ? Math.min(COMP_AREA_RIGHT - CU_W, (hasInv ? invX + INV_W + MIN_COMP_GAP : distX + distW + MIN_COMP_GAP + 40)) : 0;
-  const cuInY = hasShore ? distY + 10 : 0;
-  const cuOutX = hasShore ? cuInX : 0;
-  const cuOutY = hasShore ? cuInY + CU_H + GAP : 0;
-  const acLoadsX = hasShore ? Math.min(COMP_AREA_RIGHT - AC_LOADS_W, cuInX + Math.floor((CU_W - AC_LOADS_W) / 2)) : 0;
-  const acLoadsY = hasShore ? cuOutY + CU_H + Math.floor(GAP / 2) : 0;
-
-  // ── Solar/MPPT chain (left → right row: Solar → PV Isolator → MPPT) ──
-  const solarPanelW = Math.max(SOLAR_PANEL_W, Math.min(solarCount, 3) * (SOLAR_PANEL_W + 4) - 4);
-  const solarChainW = solarPanelW + 42 + PVDISC_W + 42 + MPPT_W;
-  const solarChainCenter = hasMPPT
-    ? (hasInv ? Math.floor((distX + distW / 2 + invX + Math.floor(INV_W / 2)) / 2) : distX + Math.floor(distW / 2))
-    : 0;
-  const solarChainStartX = hasMPPT
-    ? Math.max(S_L + 16, Math.min(S_R - solarChainW - 12, solarChainCenter - Math.floor(solarChainW / 2)))
-    : 0;
-  const solarY = hasMPPT ? Math.max(COMP_AREA_TOP, distY - GAP - MPPT_H - 24) : 0;
-  const pvDiscY = hasMPPT ? solarY + Math.floor((MPPT_H - PVDISC_H) / 2) : 0;
-  const mpptY = hasMPPT ? solarY : 0;
-  const solarX = hasMPPT ? solarChainStartX : 0;
-  const pvDiscX = hasMPPT ? solarX + solarPanelW + 42 : 0;
-  const mpptX = hasMPPT ? pvDiscX + PVDISC_W + 42 : 0;
-
-  // ── DC-DC + Starter (lifted higher to reduce mid-field intersections) ──
-  const dcdcX = hasDC ? colX['bat'] : 0;
-  const dcdcY = hasDC ? Math.max(COMP_AREA_TOP, distY - GAP - DCDC_H - 24) : 0;
-  const starterX = hasDC ? dcdcX + DCDC_W + GAP : 0;
-  const starterY = hasDC ? dcdcY + Math.floor((DCDC_H - STARTER_H) / 2) : 0;
-
-  // ── BP + Fuse Block (below hub, centered under distribution) ──
-  const bpX = bpC ? distX + Math.floor(distW / 4) - Math.floor(BP_W / 2) : 0;
-  const bpY = distY + distH + GAP;
-  const fbX = distX + Math.floor(distW * 3 / 4) - Math.floor(FB_W / 2);
-  const fbY = bpY;
-
-  // ── Earth bar + ground (bottom of schematic) ──
-  const earthBarW = Math.max(scaleDim(140, 90), earthCount * 24 + 20);
-  const earthBarXBase = Math.max(
-    S_L + 20,
-    Math.min(S_R - earthBarW - 20, hasLynx ? distX + distW - earthBarW - 10 : distX + Math.floor(distW * 0.72))
-  );
-  const earthBarX = hasShore ? Math.max(earthBarXBase, S_R - earthBarW - 220) : earthBarXBase;
-  const earthBarY = Math.max(bpY + FB_H + GAP, S_B - 16 - 10 - 25 - 5);
-  // ═══ VERTICAL SAFETY CLAMP ═══
-  // Ensure no component is placed below S_B or above S_T
-  const clampY = (y: number, h: number) => Math.min(S_B - h - 10, Math.max(S_T + 10, y));
-  const earthBarYClamped = clampY(Math.min(S_B - 30, earthBarY), 16);
+  const invX = POS.inverter.cx - Math.floor(INV_W / 2);
+  const invY = POS.inverter.cy - Math.floor(INV_H / 2);
+  const earthBarW = DIM.earth_bar.w;
+  const earthBarX = POS.earth_bar.cx - Math.floor(earthBarW / 2);
+  const earthBarYClamped = POS.earth_bar.cy - 8;
   const groundX = earthBarX + Math.floor(earthBarW / 2) - 20;
   const groundY = Math.min(S_B - 10, earthBarYClamped + 16 + 8);
+  const acLoadsX = POS.ac_loads.cx - Math.floor(AC_LOADS_W / 2);
+  const acLoadsY = POS.ac_loads.cy - Math.floor(AC_LOADS_H / 2);
 
-  // Routing corridors + keep-out zones (used by adaptive wire routing)
-  const corridors = {
-    topY: HIGHWAY_TOP + 8,
-    bottomY: HIGHWAY_BOTTOM - 8,
-    leftX: HIGHWAY_LEFT + 6,
-    rightX: HIGHWAY_RIGHT - 6,
+  // Component body registration is still needed for gauge-label avoidance.
+  const registerRect = (cx: number, cy: number, w: number, h: number) => {
+    usedRects.push({ x: cx - w / 2, y: cy - h / 2, w, h });
   };
-  const routingRects: Rect[] = [];
-  const hardNoCrossRects: Rect[] = [];
-  const pushRect = (x: number, y: number, w: number, h: number) => routingRects.push({ x, y, w, h });
-  const pushHardRect = (x: number, y: number, w: number, h: number, padX = MIN_ROUTING_CLEARANCE, padY = MIN_ROUTING_CLEARANCE) =>
-    hardNoCrossRects.push({
-      x: x - Math.max(MIN_ROUTING_CLEARANCE, padX),
-      y: y - Math.max(MIN_ROUTING_CLEARANCE, padY),
-      w: w + Math.max(MIN_ROUTING_CLEARANCE, padX) * 2,
-      h: h + Math.max(MIN_ROUTING_CLEARANCE, padY) * 2,
-    });
-  // Main obstacles (full nameplates/component bodies; keep wires off text/plates)
-  pushRect(batX, batY - 8, batW, BAT_H + 8);
-  pushHardRect(batX, batY - 8, batW, BAT_H + 8);
-  pushRect(shuntX, shuntY, SHUNT_W, SHUNT_H);
-  pushHardRect(shuntX, shuntY, SHUNT_W, SHUNT_H);
-  pushRect(isoX + 2, isoY + 2, ISO_W - 4, ISO_H - 4);
-  pushHardRect(isoX + 2, isoY + 2, ISO_W - 4, ISO_H - 4);
-  pushRect(midiX, midiY, MIDI_W, MIDI_H);
-  pushHardRect(midiX, midiY, MIDI_W, MIDI_H);
-  if (hasLynx) {
-    pushRect(distX, distY, DIST_W, DIST_H);
-    pushHardRect(distX, distY, DIST_W, DIST_H);
-  } else {
-    pushRect(distX, distY, DIST_W, DIST_H);
-    pushHardRect(distX, distY, DIST_W, DIST_H);
-  }
-  if (hasInv) {
-    pushRect(invX, invY, INV_W, INV_H);
-    pushHardRect(invX, invY, INV_W, INV_H, 10, 8);
-  }
+  registerRect(POS.battery_1.cx, POS.battery_1.cy, DIM.battery.w, DIM.battery.h);
+  if (batQty > 1) registerRect(POS.battery_2.cx, POS.battery_2.cy, DIM.battery.w, DIM.battery.h);
+  registerRect(POS.smart_shunt.cx, POS.smart_shunt.cy, DIM.smartshunt.w, DIM.smartshunt.h);
+  registerRect(POS.main_midi_fuse.cx, POS.main_midi_fuse.cy, DIM.midi_fuse.w, DIM.midi_fuse.h);
+  registerRect(POS.battery_isolator.cx, POS.battery_isolator.cy, DIM.isolator.w, DIM.isolator.h);
+  registerRect(POS.distribution.cx, POS.distribution.cy, DIM.lynx.w, DIM.lynx.h);
+  if (hasInv) registerRect(POS.inverter.cx, POS.inverter.cy, DIM.multiplus.w, DIM.multiplus.h);
   if (hasMPPT) {
-    pushRect(solarX, solarY, solarPanelW, SOLAR_PANEL_H + 7);
-    pushRect(pvDiscX, pvDiscY, PVDISC_W, PVDISC_H);
-    pushRect(mpptX, mpptY, MPPT_W, MPPT_H);
-    pushHardRect(pvDiscX, pvDiscY, PVDISC_W, PVDISC_H);
-    pushHardRect(mpptX, mpptY, MPPT_W, MPPT_H);
+    registerRect(POS.solar_panel_1.cx, POS.solar_panel_1.cy, DIM.solar_panel.w, DIM.solar_panel.h);
+    registerRect(POS.pv_disconnect.cx, POS.pv_disconnect.cy, DIM.pv_disconnect.w, DIM.pv_disconnect.h);
+    registerRect(POS.mppt.cx, POS.mppt.cy, DIM.mppt.w, DIM.mppt.h);
   }
   if (hasDC) {
-    pushRect(dcdcX, dcdcY, DCDC_W, DCDC_H);
-    pushRect(starterX, starterY, STARTER_W, STARTER_H);
-    pushHardRect(dcdcX, dcdcY, DCDC_W, DCDC_H);
-    pushHardRect(starterX, starterY, STARTER_W, STARTER_H);
+    registerRect(POS.starter_battery.cx, POS.starter_battery.cy, DIM.starter_bat.w, DIM.starter_bat.h);
+    registerRect(POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h);
   }
-  if (bpC) {
-    pushRect(bpX, bpY, BP_W, BP_H);
-    pushHardRect(bpX, bpY, BP_W, BP_H);
-  }
-  pushRect(fbX, fbY, FB_W, FB_H);
-  pushHardRect(fbX, fbY, FB_W, FB_H);
+  if (bpC) registerRect(POS.battery_protect.cx, POS.battery_protect.cy, DIM.battery_protect.w, DIM.battery_protect.h);
+  registerRect(POS.fuse_block.cx, POS.fuse_block.cy, DIM.fuse_block.w, DIM.fuse_block.h);
+  registerRect(POS.earth_bar.cx, POS.earth_bar.cy, DIM.earth_bar.w, DIM.earth_bar.h);
   if (hasShore) {
-    pushRect(shoreX, shoreY, SHORE_W, SHORE_H);
-    pushHardRect(shoreX, shoreY, SHORE_W, SHORE_H);
-    pushRect(cuInX, cuInY, CU_W, CU_H);
-    pushRect(cuOutX, cuOutY, CU_W, CU_H);
-    pushRect(acLoadsX, acLoadsY, AC_LOADS_W, AC_LOADS_H);
-    pushHardRect(cuInX, cuInY, CU_W, CU_H);
-    pushHardRect(cuOutX, cuOutY, CU_W, CU_H);
-    pushHardRect(acLoadsX, acLoadsY, AC_LOADS_W, AC_LOADS_H);
+    registerRect(POS.shore_inlet.cx, POS.shore_inlet.cy, DIM.shore_inlet.w, DIM.shore_inlet.h);
+    registerRect(POS.consumer_unit_in.cx, POS.consumer_unit_in.cy, DIM.consumer_unit.w, DIM.consumer_unit.h);
+    registerRect(POS.consumer_unit_out.cx, POS.consumer_unit_out.cy, DIM.consumer_unit.w, DIM.consumer_unit.h);
+    registerRect(POS.ac_loads.cx, POS.ac_loads.cy, DIM.ac_loads.w, DIM.ac_loads.h);
   }
-
-  const routeNet = (from: Pt, to: Pt, kind: NetClass, hint: RouteHint = 'auto'): Pt[] => {
-    const corridorByNet: Record<NetClass, { topY: number; bottomY: number; leftX: number; rightX: number }> = {
-      dc_hi:   { topY: HIGHWAY_TOP + 8,  bottomY: HIGHWAY_BOTTOM - 8,  leftX: HIGHWAY_LEFT + 6,  rightX: HIGHWAY_RIGHT - 6 },
-      dc_lo:   { topY: HIGHWAY_TOP + 16, bottomY: HIGHWAY_BOTTOM - 16, leftX: HIGHWAY_LEFT + 12, rightX: HIGHWAY_RIGHT - 12 },
-      ac_in:   { topY: HIGHWAY_TOP + 24, bottomY: HIGHWAY_BOTTOM - 24, leftX: HIGHWAY_LEFT + 18, rightX: HIGHWAY_RIGHT - 18 },
-      ac_out:  { topY: HIGHWAY_TOP + 30, bottomY: HIGHWAY_BOTTOM - 30, leftX: HIGHWAY_LEFT + 24, rightX: HIGHWAY_RIGHT - 24 },
-      earth:   { topY: HIGHWAY_TOP + 36, bottomY: HIGHWAY_BOTTOM - 4,  leftX: HIGHWAY_LEFT + 30, rightX: HIGHWAY_RIGHT - 30 },
-      signal:  { topY: HIGHWAY_TOP + 42, bottomY: HIGHWAY_BOTTOM - 36, leftX: HIGHWAY_LEFT + 34, rightX: HIGHWAY_RIGHT - 34 },
-    };
-    const local = { ...corridorByNet[kind] };
-    // Deterministic lane spread to avoid stacking parallel runs in same corridor.
-    const seed = Math.abs((from.x * 31 + from.y * 17 + to.x * 13 + to.y * 7 + kind.length * 19) | 0);
-    const jitter = (seed % 7) - 3; // -3..+3 to increase lane diversity
-    const spread = jitter * (kind === 'earth' ? 12 : kind.startsWith('ac_') ? 10 : 8);
-    local.topY += spread;
-    local.bottomY += spread;
-    local.leftX += spread;
-    local.rightX -= spread;
-    const frame: CorridorFrame = { minLeft: HIGHWAY_LEFT + 6, maxRight: HIGHWAY_RIGHT - 6, minTop: HIGHWAY_TOP + 4, maxBottom: HIGHWAY_BOTTOM - 4 };
-    Object.assign(local, clampCorridors(local, frame));
-    // Enforce short straight exit/entry at component ports before first bend.
-    // Ports can sit a few px outside a body image; still treat them as attached.
-    const fromRect = nearestContainingRect(from, routingRects) ?? nearestRectNearPoint(from, routingRects, 10);
-    const toRect = nearestContainingRect(to, routingRects) ?? nearestRectNearPoint(to, routingRects, 10);
-    const escLen = kind === 'dc_hi' ? 35
-                 : kind === 'dc_lo' ? 30
-                 : kind === 'earth' ? 28
-                 : kind.startsWith('ac_') ? 32
-                 : 25;
-    // ENGINE RULE: Escape points are clamped to the schematic frame.
-    // Prevents wires from starting/ending outside the drawing area.
-    const clampPt = (p: Pt): Pt => ({
-      x: Math.max(S_L + 4, Math.min(S_R - 4, p.x)),
-      y: Math.max(S_T + 2, Math.min(S_B - 2, p.y)),
-    });
-    const fromEsc = clampPt(fromRect ? escapeFromRect(from, to, fromRect, escLen).p : from);
-    const toEsc = clampPt(toRect ? escapeFromRect(to, from, toRect, escLen).p : to);
-
-    // ENGINE RULE: ALL component bodies are soft keep-outs for ALL net classes.
-    // This is not selective — every wire avoids every component. Only the
-    // source and target bodies are exempted (handled below via startHard/endHard).
-    const hardRects: Rect[] = [];
-    const addHalo = (r: Rect, padX = MIN_ROUTING_CLEARANCE, padY = MIN_ROUTING_CLEARANCE) => {
-      const hx = Math.max(MIN_ROUTING_CLEARANCE, padX);
-      const hy = Math.max(MIN_ROUTING_CLEARANCE, padY);
-      hardRects.push({ x: r.x - hx, y: r.y - hy, w: r.w + hx * 2, h: r.h + hy * 2 });
-    };
-
-    // Universal halos — apply to ALL nets, ALL configurations
-    if (hasLynx) addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 22, 18);
-    else addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 12, 10);
-    if (hasInv) addHalo({ x: invX, y: invY, w: INV_W, h: INV_H }, 24, 18);
-    if (hasMPPT) {
-      addHalo({ x: mpptX, y: mpptY, w: MPPT_W, h: MPPT_H }, 16, 14);
-      addHalo({ x: solarX, y: solarY, w: solarPanelW, h: SOLAR_PANEL_H + 7 }, 8, 8);
-      addHalo({ x: pvDiscX, y: pvDiscY, w: PVDISC_W, h: PVDISC_H }, 8, 8);
-    }
-    addHalo({ x: fbX, y: fbY, w: FB_W, h: FB_H }, 14, 12);
-    addHalo({ x: batX, y: batY - 8, w: batW, h: BAT_H + 8 }, 14, 12);
-    addHalo({ x: shuntX, y: shuntY, w: SHUNT_W, h: SHUNT_H }, 10, 8);
-    addHalo({ x: isoX, y: isoY, w: ISO_W, h: ISO_H }, 8, 8);
-    addHalo({ x: midiX, y: midiY, w: MIDI_W, h: MIDI_H }, 6, 6);
-    if (hasDC) {
-      addHalo({ x: dcdcX, y: dcdcY, w: DCDC_W, h: DCDC_H }, 12, 10);
-      addHalo({ x: starterX, y: starterY, w: STARTER_W, h: STARTER_H }, 10, 8);
-    }
-    if (bpC) addHalo({ x: bpX, y: bpY, w: BP_W, h: BP_H }, 10, 8);
-    if (hasShore) {
-      addHalo({ x: shoreX, y: shoreY, w: SHORE_W, h: SHORE_H }, 6, 6);
-      addHalo({ x: cuInX, y: cuInY, w: CU_W, h: CU_H }, 12, 10);
-      addHalo({ x: cuOutX, y: cuOutY, w: CU_W, h: CU_H }, 12, 10);
-      addHalo({ x: acLoadsX, y: acLoadsY, w: AC_LOADS_W, h: AC_LOADS_H }, 8, 8);
-    }
-    let routeRects = [...routingRects, ...hardRects];
-    // Soft keep-out for already placed labels/pills to avoid running over text.
-    if (usedRects.length > 0) {
-      routeRects = [
-        ...routeRects,
-        ...usedRects.map(r => ({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 })),
-      ];
-    }
-    // Default class route bias when caller does not force a hint.
-    const effectiveHint: RouteHint =
-      hint !== 'auto'
-        ? hint
-        : kind === 'earth'
-          ? 'bottom'
-          : kind === 'ac_in' || kind === 'ac_out'
-            ? 'right'
-            : 'auto';
-    // Keep hard keep-outs active, but ignore only the source/target appliance bodies.
-    // Tight source/target matching avoids accidentally exempting the wrong body.
-    const startHard = nearestContainingRect(from, hardNoCrossRects) ?? nearestRectNearPoint(from, hardNoCrossRects, 4);
-    const endHard = nearestContainingRect(to, hardNoCrossRects) ?? nearestRectNearPoint(to, hardNoCrossRects, 4);
-    const hardForThisRun = hardNoCrossRects.filter(r => r !== startHard && r !== endHard);
-    // ENGINE RULE: All component body halos from `hardRects` are already in the
-    // universal set. No per-net-class additions needed — the source/target
-    // exemption (startHard/endHard filter above) handles connection points.
-    // The sidebar exclusion zone is also already in hardRects.
-
-    // ENGINE RULE: Rendered labels/lugs are hard keep-outs for subsequent wires.
-    if (usedRects.length > 0) {
-      hardForThisRun.push(
-        ...usedRects.map(r => ({ x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 }))
-      );
-    }
-    let mid = routeOrthogonal(fromEsc, toEsc, routeRects, local, effectiveHint, routedSegs, kind, hardForThisRun);
-    let bestPath = simplifyPolyline([from, fromEsc, ...mid, toEsc, to]);
-    let bestHard = pathCollisionCount(bestPath, hardForThisRun, 4);
-    let bestSoft = pathCollisionCount(bestPath, routeRects, 6);
-    let bestStack = pathRunAlongCount(bestPath, routedSegs, 2, 10);
-
-    // Lexicographic comparison helper for reroute candidates.
-    const isBetter = (aH: number, aS: number, aK: number) =>
-      aH < bestHard ||
-      (aH === bestHard && aS < bestSoft) ||
-      (aH === bestHard && aS === bestSoft && aK < bestStack);
-
-    // Second-pass reroute with clamped corridors so alternatives never escape frame.
-    if (bestHard > 0 || bestSoft > 0 || bestStack > 0) {
-      const hints: RouteHint[] = ['top', 'bottom', 'left', 'right'];
-      const shifts = [0, -18, 18, -30, 30];
-      for (const h of hints) {
-        for (const s of shifts) {
-          const alt = { ...local };
-          if (h === 'top' || h === 'bottom') { alt.topY += s; alt.bottomY += s; }
-          else { alt.leftX += s; alt.rightX -= s; }
-          Object.assign(alt, clampCorridors(alt, frame));
-          const altMid = routeOrthogonal(fromEsc, toEsc, routeRects, alt, h, routedSegs, kind, hardForThisRun);
-          const altPath = simplifyPolyline([from, fromEsc, ...altMid, toEsc, to]);
-          const aH = pathCollisionCount(altPath, hardForThisRun, 4);
-          const aS = pathCollisionCount(altPath, routeRects, 6);
-          const aK = pathRunAlongCount(altPath, routedSegs, 2, 10);
-          if (isBetter(aH, aS, aK)) {
-            bestHard = aH; bestSoft = aS; bestStack = aK; bestPath = altPath;
-            if (aH === 0 && aS === 0 && aK === 0) break;
-          }
-        }
-        if (bestHard === 0 && bestSoft === 0 && bestStack === 0) break;
-      }
-    }
-
-    // Clamped perimeter fallback: guarantees clean lanes inside the frame.
-    if (bestHard > 0 || bestStack > 0) {
-      const cl = clampCorridors(local, frame);
-      const fenceCandidates: Pt[][] = kind === 'earth'
-        ? [
-            // Earth fallback should stay local and avoid giant page-width loops.
-            [{ x: fromEsc.x, y: cl.bottomY }, { x: toEsc.x, y: cl.bottomY }],
-            [{ x: fromEsc.x, y: cl.topY }, { x: toEsc.x, y: cl.topY }],
-          ]
-        : [
-            [{ x: fromEsc.x, y: cl.topY }, { x: toEsc.x, y: cl.topY }],
-            [{ x: fromEsc.x, y: cl.bottomY }, { x: toEsc.x, y: cl.bottomY }],
-            [{ x: cl.leftX, y: fromEsc.y }, { x: cl.leftX, y: toEsc.y }],
-            [{ x: cl.rightX, y: fromEsc.y }, { x: cl.rightX, y: toEsc.y }],
-          ];
-      for (const fence of fenceCandidates) {
-        const altPath = simplifyPolyline([from, fromEsc, ...fence, toEsc, to]);
-        const aH = pathCollisionCount(altPath, hardForThisRun, 4);
-        const aS = pathCollisionCount(altPath, routeRects, 6);
-        const aK = pathRunAlongCount(altPath, routedSegs, 2, 10);
-        if (isBetter(aH, aS, aK)) {
-          bestHard = aH; bestSoft = aS; bestStack = aK; bestPath = altPath;
-          if (aH === 0 && aK === 0) break;
-        }
-      }
-    }
-
-    // ENGINE RULE: Hard bounds clamp. Every single waypoint in the final path
-    // is clamped inside the schematic frame. No wire can EVER exit the drawing area.
-    // This is the last gate before the path is returned and cannot be bypassed.
-    for (let i = 0; i < bestPath.length; i++) {
-      bestPath[i] = {
-        x: Math.max(S_L + 4, Math.min(S_R - 4, bestPath[i].x)),
-        y: Math.max(S_T + 2, Math.min(S_B - 2, bestPath[i].y)),
-      };
-    }
-
-    return bestPath;
-  };
 
   // Fuse block circuits
   const DC_LABELS: Record<string, { label: string; fuseA: number }> = {
@@ -1468,6 +835,16 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     }
   }
 
+  // ═══ THREE-COLUMN ZONE BACKGROUNDS ═══
+  svg += `<rect x="${COL_BOUNDS.gen.x}" y="27" width="${COL_BOUNDS.gen.w}" height="${H - 27}" fill="#E8F5E9" opacity="0.35"/>`;
+  svg += `<rect x="${COL_BOUNDS.mgmt.x}" y="27" width="${COL_BOUNDS.mgmt.w}" height="${H - 27}" fill="#FFF8E1" opacity="0.35"/>`;
+  svg += `<rect x="${COL_BOUNDS.dist.x}" y="27" width="${COL_BOUNDS.dist.w}" height="${H - 27}" fill="#E3F2FD" opacity="0.35"/>`;
+  svg += `<line x1="320" y1="27" x2="320" y2="${H}" stroke="#C8E6C9" stroke-width="1" stroke-dasharray="6,4" opacity="0.6"/>`;
+  svg += `<line x1="770" y1="27" x2="770" y2="${H}" stroke="#90CAF9" stroke-width="1" stroke-dasharray="6,4" opacity="0.6"/>`;
+  svg += `<text x="${COL_BOUNDS.gen.x + COL_BOUNDS.gen.w / 2}" y="44" text-anchor="middle" font-size="7" fill="#388E3C" font-weight="700" letter-spacing="1.5">POWER GENERATION</text>`;
+  svg += `<text x="${COL_BOUNDS.mgmt.x + COL_BOUNDS.mgmt.w / 2}" y="44" text-anchor="middle" font-size="7" fill="#F57F17" font-weight="700" letter-spacing="1.5">MANAGEMENT</text>`;
+  svg += `<text x="${COL_BOUNDS.dist.x + COL_BOUNDS.dist.w / 2}" y="44" text-anchor="middle" font-size="7" fill="#1565C0" font-weight="700" letter-spacing="1.5">DISTRIBUTION</text>`;
+
   // ═══ HEADER BAR ═══
   svg += `<rect x="0" y="0" width="${W}" height="26" fill="#1A1A1A"/>`;
   if (imageMap.logo) svg += `<image href="${imageMap.logo}" x="14" y="3" width="90" height="20" preserveAspectRatio="xMidYMid meet"/>`;
@@ -1484,88 +861,88 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   const batteryDisplayQty = Math.min(batQty, 2);
   for (let i = 0; i < batteryDisplayQty; i++) {
-    const bx = batX + i * (BAT_UNIT_W + BAT_PAIR_GAP);
+    const batteryPos = i === 0 ? POS.battery_1 : POS.battery_2;
     svg += placeComponent(
       `battery_${i + 1}`,
       'battery',
-      bx + Math.floor(BAT_UNIT_W / 2),
-      batY + Math.floor(BAT_H / 2),
-      BAT_UNIT_W,
-      BAT_H,
+      batteryPos.cx,
+      batteryPos.cy,
+      DIM.battery.w,
+      DIM.battery.h,
       { capacityAh: config.batteryAh },
       bat?.model,
     );
   }
-  svg += componentNumber(batX + 22, batY + 16, N_BAT);
+  svg += componentNumber(POS.battery_1.cx - DIM.battery.w / 2 + 22, POS.battery_1.cy - DIM.battery.h / 2 + 16, N_BAT);
 
-  svg += placeComponent('smart_shunt', 'smartshunt', shuntX + Math.floor(SHUNT_W / 2), shuntY + Math.floor(SHUNT_H / 2), SHUNT_W, SHUNT_H, {}, shuntC?.product.model);
-  svg += componentNumber(shuntX + 12, shuntY + 13, N_SHUNT);
+  svg += placeComponent('smart_shunt', 'smartshunt', POS.smart_shunt.cx, POS.smart_shunt.cy, DIM.smartshunt.w, DIM.smartshunt.h, {}, shuntC?.product.model);
+  svg += componentNumber(POS.smart_shunt.cx - DIM.smartshunt.w / 2 + 12, POS.smart_shunt.cy - DIM.smartshunt.h / 2 + 13, N_SHUNT);
 
-  svg += placeComponent('battery_isolator', 'isolator', isoX + Math.floor(ISO_W / 2), isoY + Math.floor(ISO_H / 2), ISO_W, ISO_H);
-  svg += componentNumber(isoX + 14, isoY + 14, N_ISO);
+  svg += placeComponent('battery_isolator', 'isolator', POS.battery_isolator.cx, POS.battery_isolator.cy, DIM.isolator.w, DIM.isolator.h);
+  svg += componentNumber(POS.battery_isolator.cx - DIM.isolator.w / 2 + 14, POS.battery_isolator.cy - DIM.isolator.h / 2 + 14, N_ISO);
 
-  svg += placeComponent('main_midi_fuse', 'midi_fuse', midiX + Math.floor(MIDI_W / 2), midiY + Math.floor(MIDI_H / 2), MIDI_W, MIDI_H, { amps: mainFuseAmps });
-  svg += componentNumber(midiX + 10, midiY + 12, N_MIDI);
+  svg += placeComponent('main_midi_fuse', 'midi_fuse', POS.main_midi_fuse.cx, POS.main_midi_fuse.cy, DIM.midi_fuse.w, DIM.midi_fuse.h, { amps: mainFuseAmps });
+  svg += componentNumber(POS.main_midi_fuse.cx - DIM.midi_fuse.w / 2 + 10, POS.main_midi_fuse.cy - DIM.midi_fuse.h / 2 + 12, N_MIDI);
 
   if (hasLynx) {
-    svg += placeComponent('distribution', 'lynx', distX + Math.floor(DIST_W / 2), distY + Math.floor(DIST_H / 2), DIST_W, DIST_H, {}, 'LYN060102010');
+    svg += placeComponent('distribution', 'lynx', POS.distribution.cx, POS.distribution.cy, DIM.lynx.w, DIM.lynx.h, {}, 'LYN060102010');
   } else {
-    svg += placeComponent('distribution', 'busbar', distX + Math.floor(DIST_W / 2), distY + Math.floor(DIST_H / 2), DIST_W, DIST_H, {}, 'BUSBAR-POS');
+    svg += placeComponent('distribution', 'busbar', POS.distribution.cx, POS.distribution.cy, DIM.lynx.w, DIM.lynx.h, {}, 'BUSBAR-POS');
   }
-  svg += componentNumber(distX + 18, distY + 16, N_DIST);
+  svg += componentNumber(POS.distribution.cx - DIM.lynx.w / 2 + 18, POS.distribution.cy - DIM.lynx.h / 2 + 16, N_DIST);
 
   if (hasInv && invC) {
-    svg += placeComponent('inverter', 'multiplus', invX + INV_W / 2, invY + INV_H / 2, INV_W, INV_H, { model: invC.product.model }, invC.product.model);
-    svg += componentNumber(invX + 18, invY + 18, N_INV);
+    svg += placeComponent('inverter', 'multiplus', POS.inverter.cx, POS.inverter.cy, DIM.multiplus.w, DIM.multiplus.h, { model: invC.product.model }, invC.product.model);
+    svg += componentNumber(POS.inverter.cx - DIM.multiplus.w / 2 + 18, POS.inverter.cy - DIM.multiplus.h / 2 + 18, N_INV);
   }
   if (hasMPPT && mpptC) {
-    svg += placeComponent('mppt', 'mppt', mpptX + Math.floor(MPPT_W / 2), mpptY + Math.floor(MPPT_H / 2), MPPT_W, MPPT_H, { model: mpptC.product.model }, mpptC.product.model);
-    svg += componentNumber(mpptX + 14, mpptY + 14, N_MPPT);
+    svg += placeComponent('mppt', 'mppt', POS.mppt.cx, POS.mppt.cy, DIM.mppt.w, DIM.mppt.h, { model: mpptC.product.model }, mpptC.product.model);
+    svg += componentNumber(POS.mppt.cx - DIM.mppt.w / 2 + 14, POS.mppt.cy - DIM.mppt.h / 2 + 14, N_MPPT);
     const panelCount = Math.min(solarCount, 3);
     const panelW = SOLAR_PANEL_W;
     const panelH = SOLAR_PANEL_H;
     for (let i = 0; i < panelCount; i++) {
-      const px = solarX + i * (panelW + 4);
-      svg += placeComponent(`solar_panel_${i + 1}`, 'solar_panel', px + panelW / 2, solarY + panelH / 2, panelW, panelH, { watts: Math.round(config.solarWatts / panelCount) });
+      const panelPos = i === 0 ? POS.solar_panel_1 : i === 1 ? POS.solar_panel_2 : POS.solar_panel_3;
+      svg += placeComponent(`solar_panel_${i + 1}`, 'solar_panel', panelPos.cx, panelPos.cy, panelW, panelH, { watts: Math.round(config.solarWatts / panelCount) });
     }
-    svg += componentNumber(solarX + 14, solarY + 14, N_SOLAR);
-    svg += placeComponent('pv_disconnect', 'pv_disconnect', pvDiscX + Math.floor(PVDISC_W / 2), pvDiscY + Math.floor(PVDISC_H / 2), PVDISC_W, PVDISC_H);
-    svg += componentNumber(pvDiscX + 14, pvDiscY + 14, N_PVDISC);
+    svg += componentNumber(POS.solar_panel_1.cx - DIM.solar_panel.w / 2 + 14, POS.solar_panel_1.cy - DIM.solar_panel.h / 2 + 14, N_SOLAR);
+    svg += placeComponent('pv_disconnect', 'pv_disconnect', POS.pv_disconnect.cx, POS.pv_disconnect.cy, DIM.pv_disconnect.w, DIM.pv_disconnect.h);
+    svg += componentNumber(POS.pv_disconnect.cx - DIM.pv_disconnect.w / 2 + 14, POS.pv_disconnect.cy - DIM.pv_disconnect.h / 2 + 14, N_PVDISC);
   }
   if (hasDC && dcdcC) {
-    svg += placeComponent('dcdc', 'orion', dcdcX + Math.floor(DCDC_W / 2), dcdcY + Math.floor(DCDC_H / 2), DCDC_W, DCDC_H, { model: dcdcC.product.model }, dcdcC.product.model);
-    svg += componentNumber(dcdcX + 14, dcdcY + 14, N_DCDC);
-    svg += placeComponent('starter_battery', 'starter_battery', starterX + Math.floor(STARTER_W / 2), starterY + Math.floor(STARTER_H / 2), STARTER_W, STARTER_H);
-    svg += componentNumber(starterX + 14, starterY + 14, N_STARTER);
+    svg += placeComponent('dcdc', 'orion', POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h, { model: dcdcC.product.model }, dcdcC.product.model);
+    svg += componentNumber(POS.dcdc.cx - DIM.orion.w / 2 + 14, POS.dcdc.cy - DIM.orion.h / 2 + 14, N_DCDC);
+    svg += placeComponent('starter_battery', 'starter_battery', POS.starter_battery.cx, POS.starter_battery.cy, DIM.starter_bat.w, DIM.starter_bat.h);
+    svg += componentNumber(POS.starter_battery.cx - DIM.starter_bat.w / 2 + 14, POS.starter_battery.cy - DIM.starter_bat.h / 2 + 14, N_STARTER);
   }
   if (bpC) {
     svg += placeComponent(
       'battery_protect',
       'battery_protect',
-      bpX + Math.floor(BP_W / 2),
-      bpY + Math.floor(BP_H / 2),
-      BP_W,
-      BP_H,
+      POS.battery_protect.cx,
+      POS.battery_protect.cy,
+      DIM.battery_protect.w,
+      DIM.battery_protect.h,
       { amps: Number(bpC.product.specs.maxCurrent) || 100 },
     );
-    svg += componentNumber(bpX + 14, bpY + 14, N_BP);
+    svg += componentNumber(POS.battery_protect.cx - DIM.battery_protect.w / 2 + 14, POS.battery_protect.cy - DIM.battery_protect.h / 2 + 14, N_BP);
   }
-  svg += placeComponent('fuse_block', 'fuse_block', fbX + Math.floor(FB_W / 2), fbY + Math.floor(FB_H / 2), FB_W, FB_H);
-  svg += componentNumber(fbX + 14, fbY + 14, N_FB);
+  svg += placeComponent('fuse_block', 'fuse_block', POS.fuse_block.cx, POS.fuse_block.cy, DIM.fuse_block.w, DIM.fuse_block.h);
+  svg += componentNumber(POS.fuse_block.cx - DIM.fuse_block.w / 2 + 14, POS.fuse_block.cy - DIM.fuse_block.h / 2 + 14, N_FB);
 
-  svg += placeComponent('earth_bar', 'earth_bar', earthBarX + earthBarW / 2, earthBarYClamped + 8, earthBarW, 16);
+  svg += placeComponent('earth_bar', 'earth_bar', POS.earth_bar.cx, POS.earth_bar.cy, earthBarW, 16);
   svg += groundSymbol(groundX, groundY);
-  svg += componentNumber(earthBarX + 14, earthBarYClamped + 8, N_EARTH);
+  svg += componentNumber(POS.earth_bar.cx - earthBarW / 2 + 14, POS.earth_bar.cy, N_EARTH);
 
   if (hasShore) {
-    svg += placeComponent('shore_inlet', 'shore_inlet', shoreX + Math.floor(SHORE_W / 2), shoreY + Math.floor(SHORE_H / 2), SHORE_W, SHORE_H);
-    svg += componentNumber(shoreX + 10, shoreY + 10, N_SHORE);
-    svg += placeComponent('consumer_unit_in', 'consumer_unit', cuInX + Math.floor(CU_W / 2), cuInY + Math.floor(CU_H / 2), CU_W, CU_H, { label: 'AC-In Consumer Unit' });
-    svg += componentNumber(cuInX + 14, cuInY + 14, N_CUIN);
-    svg += placeComponent('consumer_unit_out', 'consumer_unit', cuOutX + Math.floor(CU_W / 2), cuOutY + Math.floor(CU_H / 2), CU_W, CU_H, { label: 'AC-Out Consumer Unit' });
-    svg += componentNumber(cuOutX + 14, cuOutY + 14, N_CUOUT);
+    svg += placeComponent('shore_inlet', 'shore_inlet', POS.shore_inlet.cx, POS.shore_inlet.cy, DIM.shore_inlet.w, DIM.shore_inlet.h);
+    svg += componentNumber(POS.shore_inlet.cx - DIM.shore_inlet.w / 2 + 10, POS.shore_inlet.cy - DIM.shore_inlet.h / 2 + 10, N_SHORE);
+    svg += placeComponent('consumer_unit_in', 'consumer_unit', POS.consumer_unit_in.cx, POS.consumer_unit_in.cy, DIM.consumer_unit.w, DIM.consumer_unit.h, { label: 'AC-In Consumer Unit' });
+    svg += componentNumber(POS.consumer_unit_in.cx - DIM.consumer_unit.w / 2 + 14, POS.consumer_unit_in.cy - DIM.consumer_unit.h / 2 + 14, N_CUIN);
+    svg += placeComponent('consumer_unit_out', 'consumer_unit', POS.consumer_unit_out.cx, POS.consumer_unit_out.cy, DIM.consumer_unit.w, DIM.consumer_unit.h, { label: 'AC-Out Consumer Unit' });
+    svg += componentNumber(POS.consumer_unit_out.cx - DIM.consumer_unit.w / 2 + 14, POS.consumer_unit_out.cy - DIM.consumer_unit.h / 2 + 14, N_CUOUT);
     svg += acLoadsSocket(acLoadsX, acLoadsY);
-    placedPorts.ac_loads = { ac_in: { x: acLoadsX + Math.floor(AC_LOADS_W / 2), y: acLoadsY + 1 } };
+    placedPorts.ac_loads = { ac_in: { x: POS.ac_loads.cx, y: acLoadsY + 1 } };
     placedComponentTypes.ac_loads = 'consumer_ac';
     placedComponentSku.ac_loads = undefined;
     svg += componentNumber(acLoadsX + 12, acLoadsY + 12, N_ACLOADS);
@@ -1573,30 +950,18 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   void placedPorts;
 
-  // ═══ ZONE HEADERS ═══
-  svg += `<text x="${batX + batW / 2}" y="${Math.min(batY, shuntY) - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">BATTERY BANK</text>`;
-
-  svg += `<text x="${distX + distW / 2}" y="${distY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">DC DISTRIBUTION</text>`;
-
-  if (hasInv) {
-    svg += `<text x="${invX + INV_W / 2}" y="${invY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">INVERTER / CHARGER</text>`;
-  }
-
-  if (hasShore) {
-    svg += `<text x="${shoreX + SHORE_W / 2}" y="${shoreY - 10}" text-anchor="middle" font-size="7" fill="#3498DB" font-weight="700">MAINS / GRID INPUT</text>`;
-  }
-
+  // ═══ SUB-LABELS ═══
   if (hasMPPT) {
-    const solarCenterX = solarX + Math.floor((mpptX + MPPT_W - solarX) / 2);
-    svg += `<text x="${solarCenterX}" y="${solarY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">SOLAR SYSTEM</text>`;
+    svg += `<text x="${POS.mppt.cx}" y="${POS.solar_panel_1.cy - DIM.solar_panel.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#388E3C" font-weight="600">SOLAR</text>`;
   }
-
   if (hasDC) {
-    const dcdcCenterX = dcdcX + Math.floor((starterX + STARTER_W - dcdcX) / 2);
-    svg += `<text x="${dcdcCenterX}" y="${dcdcY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">ALTERNATOR CHARGING</text>`;
+    svg += `<text x="${(POS.starter_battery.cx + POS.dcdc.cx) / 2}" y="${POS.dcdc.cy - DIM.orion.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#388E3C" font-weight="600">ALTERNATOR CHARGING</text>`;
   }
-
-  svg += `<text x="${earthBarX + earthBarW / 2}" y="${earthBarYClamped - 10}" text-anchor="middle" font-size="7" fill="#27AE60" font-weight="700">EARTH / CHASSIS BOND</text>`;
+  svg += `<text x="${POS.distribution.cx}" y="${POS.distribution.cy - DIM.lynx.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#F57F17" font-weight="600">LYNX DISTRIBUTION</text>`;
+  svg += `<text x="${POS.earth_bar.cx}" y="${POS.earth_bar.cy - 12}" text-anchor="middle" font-size="5.5" fill="#27AE60" font-weight="600">EARTH / CHASSIS</text>`;
+  if (hasShore) {
+    svg += `<text x="${POS.shore_inlet.cx}" y="${POS.shore_inlet.cy - DIM.shore_inlet.h / 2 - 10}" text-anchor="middle" font-size="6" fill="#3498DB" font-weight="600">SHORE</text>`;
+  }
 
   // ═══ WIRES (no verbose labels — gauge badges only) ═══
 
@@ -1605,6 +970,79 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     if (dir === 'right') return { x: 1, y: 0 };
     if (dir === 'up') return { x: 0, y: -1 };
     return { x: 0, y: 1 };
+  };
+
+  type RouteStrategy =
+    | 'direct'
+    | 'direct-v'
+    | 'top'
+    | 'bottom'
+    | 'left'
+    | 'right'
+    | 'neg-bus'
+    | { hwy: number }
+    | { vwy: number }
+    | { pts: [number, number][] };
+
+  const routeByStrategy = (src: Pt, dst: Pt, strategy: RouteStrategy): Pt[] => {
+    if (strategy === 'direct') return [{ x: dst.x, y: src.y }];
+    if (strategy === 'direct-v') return [{ x: src.x, y: dst.y }];
+    if (strategy === 'top') return [{ x: src.x, y: HWY.top }, { x: dst.x, y: HWY.top }];
+    if (strategy === 'bottom') return [{ x: src.x, y: HWY.bottom }, { x: dst.x, y: HWY.bottom }];
+    if (strategy === 'left') return [{ x: HWY.left, y: src.y }, { x: HWY.left, y: dst.y }];
+    if (strategy === 'right') return [{ x: HWY.right, y: src.y }, { x: HWY.right, y: dst.y }];
+    if (strategy === 'neg-bus') return [{ x: src.x, y: HWY.neg }, { x: dst.x, y: HWY.neg }];
+    if ('hwy' in strategy) return [{ x: src.x, y: strategy.hwy }, { x: dst.x, y: strategy.hwy }];
+    if ('vwy' in strategy) return [{ x: strategy.vwy, y: src.y }, { x: strategy.vwy, y: dst.y }];
+    if ('pts' in strategy) return strategy.pts.map(([x, y]) => ({ x, y }));
+    return [{ x: dst.x, y: src.y }];
+  };
+
+  const WIRE_STRATEGIES: Record<string, RouteStrategy> = {
+    // ── AC PATH (top row, left → right) ──
+    'shore_inlet:ac_line→consumer_unit_in:ac_in': 'direct',
+    'consumer_unit_in:ac_out_1→inverter:ac_in': { hwy: 230 },
+    'inverter:ac_out→consumer_unit_out:ac_in': { vwy: 770 },
+    'consumer_unit_out:ac_out_1→ac_loads:ac_in': 'direct-v',
+
+    // ── SOLAR PATH (generation column vertical stack) ──
+    'solar_panel_1:pv_positive→pv_disconnect:pv_in_positive': 'direct-v',
+    'solar_panel_1:pv_negative→mppt:pv_negative': { vwy: 220 },
+    'pv_disconnect:pv_out_positive→mppt:pv_positive': 'direct-v',
+    'distribution:fuse_out_2→mppt:bat_positive': { hwy: 530 },
+    'distribution:busbar_neg→mppt:bat_negative': { hwy: 540 },
+
+    // ── DC-DC PATH (generation column → management via x≈332-340 corridor) ──
+    'starter_battery:positive_terminal→dcdc:in_positive': 'direct',
+    'starter_battery:negative_terminal→dcdc:in_negative': 'direct',
+    'dcdc:out_positive→distribution:fuse_out_3': { vwy: 340 },
+    'dcdc:out_negative→distribution:busbar_neg': { vwy: 332 },
+
+    // ── BATTERY POSITIVE CHAIN (management column vertical) ──
+    'battery_1:positive_terminal→main_midi_fuse:in_positive': { pts: [[530, 520], [430, 520]] },
+    'main_midi_fuse:out_positive→battery_isolator:in_positive': 'direct-v',
+    'battery_isolator:out_positive→distribution:busbar_in': { vwy: 380 },
+
+    // ── BATTERY NEGATIVE CHAIN ──
+    'battery_1:negative_terminal→smart_shunt:batt_neg_in': { pts: [[560, 580]] },
+    'battery_2:negative_terminal→smart_shunt:batt_neg_in': { pts: [[660, 580]] },
+    'smart_shunt:system_neg_out→distribution:busbar_neg': { vwy: 700 },
+
+    // ── SIGNAL ──
+    'smart_shunt:aux_sense→battery_1:positive_terminal': 'direct',
+
+    // ── INVERTER DC (management → inverter via x≈680-690 corridor) ──
+    'distribution:fuse_out_1→inverter:dc_positive': { vwy: 680 },
+    'distribution:busbar_neg→inverter:dc_negative': { vwy: 690 },
+    'inverter:earth_terminal→earth_bar:in_1': { vwy: 775 },
+
+    // ── LOAD DISTRIBUTION (rightward flow) ──
+    'distribution:fuse_out_4→battery_protect:in_positive': 'direct',
+    'battery_protect:out_positive→fuse_block:pos_in': 'direct',
+    'distribution:busbar_neg→fuse_block:neg_in': { hwy: 475 },
+
+    // ── EARTH/CHASSIS BOND ──
+    'earth_bar:chassis→distribution:busbar_neg': { vwy: 395 },
   };
 
   const drawRuleWire = ({
@@ -1643,8 +1081,9 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
     const srcStubEnd = { x: src.x + srcVec.x * srcStubLen, y: src.y + srcVec.y * srcStubLen };
     const dstStubEnd = { x: dst.x + dstVec.x * dstStubLen, y: dst.y + dstVec.y * dstStubLen };
-    const routed = routeNet(srcStubEnd, dstStubEnd, netClass, hint);
-    const middle = routed.slice(1, -1);
+    const routeKey = `${fromId}:${fromPort}→${toId}:${toPort}`;
+    const strategy = WIRE_STRATEGIES[routeKey] ?? 'direct';
+    const middle = routeByStrategy(srcStubEnd, dstStubEnd, strategy);
 
     const gauge = overrideGauge ?? getEffectiveGauge(placedComponentSku[fromId], srcType, fromPort);
     const strokeWidth = GAUGE_STROKE[gauge] ?? 2;
@@ -1930,15 +1369,15 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   // ═══ AC WIRING (shore power) — standardized AC ports ═══
   // Ports are defined once and used for both routing + drawing to prevent drift.
   const AC_PORT = {
-    shoreOut:     { x: shoreX + Math.floor(SHORE_W / 2),  y: shoreY + SHORE_H - 4 },
-    cuInTop:      { x: cuInX + Math.floor(CU_W / 2),   y: cuInY },
-    cuInBot:      { x: cuInX + Math.floor(CU_W / 2),   y: cuInY + CU_H },
-    cuInEarth:    { x: cuInX + Math.floor(CU_W * 0.87),  y: cuInY + CU_H },
-    cuOutTop:     { x: cuOutX + Math.floor(CU_W / 2),  y: cuOutY },
-    cuOutBot:     { x: cuOutX + Math.floor(CU_W / 2),  y: cuOutY + CU_H },
-    cuOutEarth:   { x: cuOutX + Math.floor(CU_W * 0.87), y: cuOutY + CU_H },
-    acLoadsEntry: { x: acLoadsX + Math.floor(AC_LOADS_W / 2), y: acLoadsY - 14 },
-    acLoadsPort:  { x: acLoadsX + Math.floor(AC_LOADS_W / 2), y: acLoadsY + 1 },
+    shoreOut:     { x: POS.shore_inlet.cx, y: POS.shore_inlet.cy + Math.floor(DIM.shore_inlet.h / 2) },
+    cuInTop:      { x: POS.consumer_unit_in.cx, y: POS.consumer_unit_in.cy - Math.floor(DIM.consumer_unit.h / 2) },
+    cuInBot:      { x: POS.consumer_unit_in.cx, y: POS.consumer_unit_in.cy + Math.floor(DIM.consumer_unit.h / 2) },
+    cuInEarth:    { x: POS.consumer_unit_in.cx + Math.floor(DIM.consumer_unit.w * 0.37), y: POS.consumer_unit_in.cy + Math.floor(DIM.consumer_unit.h / 2) },
+    cuOutTop:     { x: POS.consumer_unit_out.cx, y: POS.consumer_unit_out.cy - Math.floor(DIM.consumer_unit.h / 2) },
+    cuOutBot:     { x: POS.consumer_unit_out.cx, y: POS.consumer_unit_out.cy + Math.floor(DIM.consumer_unit.h / 2) },
+    cuOutEarth:   { x: POS.consumer_unit_out.cx + Math.floor(DIM.consumer_unit.w * 0.37), y: POS.consumer_unit_out.cy + Math.floor(DIM.consumer_unit.h / 2) },
+    acLoadsEntry: { x: POS.ac_loads.cx, y: POS.ac_loads.cy - Math.floor(DIM.ac_loads.h / 2) - 14 },
+    acLoadsPort:  { x: POS.ac_loads.cx, y: POS.ac_loads.cy - Math.floor(DIM.ac_loads.h / 2) + 1 },
     invAcIn:      { x: invX + invPortX(INV_PORT_RATIO.acIn),  y: invY + INV_H + 5 },
     invAcOut:     { x: invX + invPortX(INV_PORT_RATIO.acOut), y: invY + INV_H + 5 },
   };
