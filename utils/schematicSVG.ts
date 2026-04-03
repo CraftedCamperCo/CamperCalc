@@ -97,13 +97,6 @@ const INV_PORT_RATIO = {
 let usedRects: { x: number; y: number; w: number; h: number }[] = [];
 let routedSegs: Seg[] = [];
 let wireIdCounter = 0;
-function overlaps(x: number, y: number, w: number, h: number): boolean {
-  for (const r of usedRects) {
-    if (x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y) return true;
-  }
-  return false;
-}
-function reserve(x: number, y: number, w: number, h: number) { usedRects.push({ x, y, w, h }); }
 
 function simplifyPolyline(points: Pt[]): Pt[] {
   if (points.length <= 2) return points;
@@ -138,26 +131,6 @@ let nominalParallelSegs: ParallelNominalSeg[] = [];
 
 function findW(cs: WireConnection[], ...kw: string[]) {
   return cs.find(w => kw.every(k => w.label.toLowerCase().includes(k.toLowerCase())));
-}
-
-function lugSpecForGauge(gauge: number): { stud: string; text: string } {
-  if (gauge >= 50) return { stud: 'M10', text: 'M10 lug' };
-  if (gauge >= 35) return { stud: 'M10', text: 'M10 lug' };
-  if (gauge >= 16) return { stud: 'M8', text: 'M8 lug' };
-  if (gauge >= 10) return { stud: 'M6', text: 'M6 lug' };
-  return { stud: 'M5', text: 'M5 lug' };
-}
-
-function lugMarker(x: number, y: number, label?: string): string {
-  const pill = label
-    ? `<rect x="5" y="-4" width="20" height="8" rx="2" fill="#fff" stroke="#8B6914" stroke-width="0.55"/>
-    <text x="15" y="2" text-anchor="middle" font-size="5.5" fill="#8B6914" font-weight="700">${label}</text>`
-    : '';
-  return `<g transform="translate(${x},${y})">
-    <circle cx="0" cy="0" r="3.4" fill="#F7F2E8" stroke="#8B6914" stroke-width="0.8"/>
-    <circle cx="0" cy="0" r="1.5" fill="none" stroke="#8B6914" stroke-width="0.7"/>
-    ${pill}
-  </g>`;
 }
 
 function pointInRect(p: Pt, r: Rect, pad = 2): boolean {
@@ -384,37 +357,47 @@ function routeOrthogonal(
   netClass: NetClass | 'unknown' = 'unknown',
   hardNoCrossRects: Rect[] = []
 ): Pt[] {
+  // ═══ PERIMETER-FIRST ROUTING STRATEGY ═══
+  // Professional schematics route around component clusters, not through them.
   const candidates: Pt[][] = [];
-  const hv = [{ x: to.x, y: from.y }];
-  const vh = [{ x: from.x, y: to.y }];
-  const top = [{ x: from.x, y: corridors.topY }, { x: to.x, y: corridors.topY }];
-  const bottom = [{ x: from.x, y: corridors.bottomY }, { x: to.x, y: corridors.bottomY }];
-  const left = [{ x: corridors.leftX, y: from.y }, { x: corridors.leftX, y: to.y }];
-  const right = [{ x: corridors.rightX, y: from.y }, { x: corridors.rightX, y: to.y }];
-  // Inner rails create cleaner "highway" routing options in dense diagrams.
-  const upperMidY = Math.round(corridors.topY + (corridors.bottomY - corridors.topY) * 0.35);
-  const lowerMidY = Math.round(corridors.topY + (corridors.bottomY - corridors.topY) * 0.65);
-  const innerLeftX = Math.round(corridors.leftX + (corridors.rightX - corridors.leftX) * 0.33);
-  const innerRightX = Math.round(corridors.leftX + (corridors.rightX - corridors.leftX) * 0.67);
-  const upperMid = [{ x: from.x, y: upperMidY }, { x: to.x, y: upperMidY }];
-  const lowerMid = [{ x: from.x, y: lowerMidY }, { x: to.x, y: lowerMidY }];
-  const leftInner = [{ x: innerLeftX, y: from.y }, { x: innerLeftX, y: to.y }];
-  const rightInner = [{ x: innerRightX, y: from.y }, { x: innerRightX, y: to.y }];
-  // 3-bend perimeter detours give the router more options under dense layouts.
-  const topRight = [{ x: from.x, y: corridors.topY }, { x: corridors.rightX, y: corridors.topY }, { x: corridors.rightX, y: to.y }];
-  const topLeft = [{ x: from.x, y: corridors.topY }, { x: corridors.leftX, y: corridors.topY }, { x: corridors.leftX, y: to.y }];
-  const bottomRight = [{ x: from.x, y: corridors.bottomY }, { x: corridors.rightX, y: corridors.bottomY }, { x: corridors.rightX, y: to.y }];
-  const bottomLeft = [{ x: from.x, y: corridors.bottomY }, { x: corridors.leftX, y: corridors.bottomY }, { x: corridors.leftX, y: to.y }];
-  const rightTop = [{ x: corridors.rightX, y: from.y }, { x: corridors.rightX, y: corridors.topY }, { x: to.x, y: corridors.topY }];
-  const rightBottom = [{ x: corridors.rightX, y: from.y }, { x: corridors.rightX, y: corridors.bottomY }, { x: to.x, y: corridors.bottomY }];
-  const leftTop = [{ x: corridors.leftX, y: from.y }, { x: corridors.leftX, y: corridors.topY }, { x: to.x, y: corridors.topY }];
-  const leftBottom = [{ x: corridors.leftX, y: from.y }, { x: corridors.leftX, y: corridors.bottomY }, { x: to.x, y: corridors.bottomY }];
+  const a = from;
+  const b = to;
+  const topHighwayY = corridors.topY;
+  const bottomHighwayY = corridors.bottomY;
+  const leftHighwayX = corridors.leftX;
+  const rightHighwayX = corridors.rightX;
 
-  if (hint === 'top') candidates.push(top, upperMid, topRight, topLeft, hv, vh, rightInner, leftInner, right, left, lowerMid, bottom, rightTop, leftTop);
-  else if (hint === 'bottom') candidates.push(bottom, lowerMid, bottomRight, bottomLeft, vh, hv, rightInner, leftInner, right, left, upperMid, top, rightBottom, leftBottom);
-  else if (hint === 'left') candidates.push(left, leftInner, leftTop, leftBottom, vh, hv, upperMid, lowerMid, top, bottom, right, topLeft, bottomLeft);
-  else if (hint === 'right') candidates.push(right, rightInner, rightTop, rightBottom, hv, vh, upperMid, lowerMid, top, bottom, left, topRight, bottomRight);
-  else candidates.push(hv, vh, upperMid, lowerMid, top, bottom, rightInner, leftInner, right, left, topRight, topLeft, bottomRight, bottomLeft, rightTop, rightBottom, leftTop, leftBottom);
+  // Tier 1: perimeter routes (preferred)
+  const perimTop = [{ x: a.x, y: topHighwayY }, { x: b.x, y: topHighwayY }];
+  const perimBottom = [{ x: a.x, y: bottomHighwayY }, { x: b.x, y: bottomHighwayY }];
+  const perimLeft = [{ x: leftHighwayX, y: a.y }, { x: leftHighwayX, y: b.y }];
+  const perimRight = [{ x: rightHighwayX, y: a.y }, { x: rightHighwayX, y: b.y }];
+
+  // Tier 2: direct routes (only when reasonably aligned)
+  const sameRow = Math.abs(a.y - b.y) < 80;
+  const sameCol = Math.abs(a.x - b.x) < 80;
+  const directH = [{ x: b.x, y: a.y }];
+  const directV = [{ x: a.x, y: b.y }];
+
+  // Tier 3: L routes
+  const hv = [{ x: b.x, y: a.y }];
+  const vh = [{ x: a.x, y: b.y }];
+
+  // Tier 4: combined perimeter detours
+  const topRight = [{ x: a.x, y: topHighwayY }, { x: rightHighwayX, y: topHighwayY }, { x: rightHighwayX, y: b.y }];
+  const topLeft = [{ x: a.x, y: topHighwayY }, { x: leftHighwayX, y: topHighwayY }, { x: leftHighwayX, y: b.y }];
+  const bottomRight = [{ x: a.x, y: bottomHighwayY }, { x: rightHighwayX, y: bottomHighwayY }, { x: rightHighwayX, y: b.y }];
+  const bottomLeft = [{ x: a.x, y: bottomHighwayY }, { x: leftHighwayX, y: bottomHighwayY }, { x: leftHighwayX, y: b.y }];
+
+  if (hint === 'top') candidates.push(perimTop, perimRight, perimLeft, perimBottom);
+  else if (hint === 'bottom') candidates.push(perimBottom, perimRight, perimLeft, perimTop);
+  else if (hint === 'left') candidates.push(perimLeft, perimTop, perimBottom, perimRight);
+  else if (hint === 'right') candidates.push(perimRight, perimTop, perimBottom, perimLeft);
+  else candidates.push(perimTop, perimBottom, perimLeft, perimRight);
+
+  if (sameRow) candidates.push(directH);
+  if (sameCol) candidates.push(directV);
+  candidates.push(hv, vh, topRight, topLeft, bottomRight, bottomLeft);
 
   let best = hv;
   let bestH = Infinity, bestS = Infinity, bestK = Infinity, bestC = Infinity, bestD = Infinity;
@@ -424,7 +407,7 @@ function routeOrthogonal(
     const s = pathCollisionCount(pts, rects, 6);
     const k = pathRunAlongCount(pts, existingSegs, 2, 10);
     const c = pathCrowdingPenalty(pts, existingSegs, netClass);
-    const bends = Math.max(0, waypoints.length);
+    const bends = Math.max(0, pts.length - 2);
     const dist = pts.slice(0, -1).reduce((acc, p, i) => acc + Math.abs(p.x - pts[i + 1].x) + Math.abs(p.y - pts[i + 1].y), 0);
     const d = bends * 40 + dist + c;
     // Strict lexicographic: hard > soft > run-along > rest
@@ -435,7 +418,7 @@ function routeOrthogonal(
       (h === bestH && s === bestS && k === bestK && d < bestD)
     ) {
       bestH = h; bestS = s; bestK = k; bestD = d;
-      best = waypoints;
+      best = pts.slice(1, -1);
       if (h === 0 && s === 0 && k === 0) break;
     }
   }
@@ -451,6 +434,15 @@ function wire(from: Pt, to: Pt, color: string, gauge: number, waypoints?: Pt[], 
 }): string {
   const { dashed = false, netClass = 'unknown', strokeWidth } = opts ?? {};
   const pts = simplifyPolyline([from, ...(waypoints ?? []), to]);
+  const segPoints = [...pts];
+  // ═══ ORTHOGONAL ENFORCEMENT ═══
+  // No diagonal segments allowed. Insert a corner where needed.
+  for (let i = 1; i < segPoints.length; i++) {
+    if (segPoints[i].x !== segPoints[i - 1].x && segPoints[i].y !== segPoints[i - 1].y) {
+      segPoints.splice(i, 0, { x: segPoints[i].x, y: segPoints[i - 1].y });
+      i++;
+    }
+  }
 
   const overlapLen = (a1: number, a2: number, b1: number, b2: number): number => {
     const lo = Math.max(Math.min(a1, a2), Math.min(b1, b2));
@@ -555,75 +547,70 @@ function wire(from: Pt, to: Pt, color: string, gauge: number, waypoints?: Pt[], 
     return { shifted, offsetAxis: bestAxis, offset: chosenOffset };
   };
 
-  const { shifted: drawPts } = applyParallelOffset(pts);
+  const { shifted: drawPts } = applyParallelOffset(segPoints);
+  const finalPts = [...drawPts];
+  for (let i = 1; i < finalPts.length; i++) {
+    if (finalPts[i].x !== finalPts[i - 1].x && finalPts[i].y !== finalPts[i - 1].y) {
+      finalPts.splice(i, 0, { x: finalPts[i].x, y: finalPts[i - 1].y });
+      i++;
+    }
+  }
   const sw = strokeWidth ?? gaugeToStroke(gauge);
   const dash = dashed ? ` stroke-dasharray="6 3"` : '';
   const wid = wireIdCounter++;
 
   let d = '';
-  for (let i = 0; i < drawPts.length; i++) {
-    d += i === 0 ? `M${drawPts[i].x},${drawPts[i].y}` : ` L${drawPts[i].x},${drawPts[i].y}`;
+  for (let i = 0; i < finalPts.length; i++) {
+    d += i === 0 ? `M${finalPts[i].x},${finalPts[i].y}` : ` L${finalPts[i].x},${finalPts[i].y}`;
   }
 
   // ENGINE RULE: Wire path gets a unique ID so <textPath> can reference it.
   let svg = `<path id="w${wid}" d="${d}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
 
-  // On-wire pill labels (stamped directly on cable).
+  // ═══ ON-WIRE GAUGE LABEL ═══
+  // Small text directly on the wire, not a large separate pill.
   const gaugeKey = `${netClass}:${gauge}`;
   const shownCount = shownGaugeLabels.get(gaugeKey) ?? 0;
-  const maxLabels = Number.MAX_SAFE_INTEGER;
-  const shouldShowGauge = shownCount < maxLabels;
+  const shouldShowGauge = shownCount < 2;
 
-  if (shouldShowGauge) {
-    // Longest axis-aligned segment
-    let bestI = -1, bestLen = 0;
-    for (let i = 0; i < drawPts.length - 1; i++) {
-      const segLen = Math.abs(drawPts[i + 1].x - drawPts[i].x) + Math.abs(drawPts[i + 1].y - drawPts[i].y);
-      if (segLen > bestLen) { bestLen = segLen; bestI = i; }
+  if (shouldShowGauge && finalPts.length >= 2) {
+    let bestLen = 0;
+    let bestIdx = -1;
+    let bestIsVert = false;
+    for (let i = 0; i < finalPts.length - 1; i++) {
+      const dx = Math.abs(finalPts[i + 1].x - finalPts[i].x);
+      const dy = Math.abs(finalPts[i + 1].y - finalPts[i].y);
+      const len = dx + dy;
+      if (len > bestLen) { bestLen = len; bestIdx = i; bestIsVert = dx < dy; }
     }
-    if (bestI >= 0 && bestLen >= 24) {
-      const sA = drawPts[bestI];
-      const sB = drawPts[bestI + 1];
-      const midX = (sA.x + sB.x) / 2;
-      const midY = (sA.y + sB.y) / 2;
+    if (bestIdx >= 0 && bestLen > 30) {
+      const midX = (finalPts[bestIdx].x + finalPts[bestIdx + 1].x) / 2;
+      const midY = (finalPts[bestIdx].y + finalPts[bestIdx + 1].y) / 2;
       const gLabel = `${gauge}mm²`;
-      const pillW = gLabel.length * 5.5 * 0.65 + 12;
-      const pillH = 10.5;
-      const pill = `<rect x="${midX - pillW / 2}" y="${midY - pillH / 2}" width="${pillW}" height="${pillH}" rx="${pillH / 2}" fill="${color}"/>
-<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="5.5" fill="white" font-weight="bold">${gLabel}</text>`;
-      const isVertical = sA.x === sB.x;
-      svg += isVertical ? `<g transform="rotate(-90, ${midX}, ${midY})">${pill}</g>` : pill;
+      const labelW = gLabel.length * 3.2 + 4;
+      const labelH = 7;
+      const bgFill = color === WC.red ? 'rgba(192,57,43,0.85)'
+                   : color === WC.blk ? 'rgba(44,62,80,0.85)'
+                   : color === WC.gn ? 'rgba(39,174,96,0.85)'
+                   : color === WC.blu ? 'rgba(41,128,185,0.85)'
+                   : 'rgba(80,80,80,0.85)';
+      if (bestIsVert) {
+        svg += `<g transform="rotate(-90, ${midX}, ${midY})">`;
+        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="2" fill="${bgFill}"/>`;
+        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="4" fill="#FFF" font-weight="600" font-family="Arial,sans-serif">${gLabel}</text>`;
+        svg += `</g>`;
+      } else {
+        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="2" fill="${bgFill}"/>`;
+        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="4" fill="#FFF" font-weight="600" font-family="Arial,sans-serif">${gLabel}</text>`;
+      }
+      usedRects.push({ x: midX - labelW / 2, y: midY - labelH / 2, w: labelW, h: labelH });
       shownGaugeLabels.set(gaugeKey, shownCount + 1);
     }
   }
 
-  // Terminal lug markers at cable ends (DC/AC power runs).
-  if (gauge >= 16 && netClass !== 'signal') {
-    const lug = lugSpecForGauge(gauge);
-    const markAt = (p: Pt, neighbour: Pt, seed: number) => {
-      const dx = neighbour.x - p.x;
-      const dy = neighbour.y - p.y;
-      const nx = dx === 0 ? (seed % 2 === 0 ? 1 : -1) : 0;
-      const ny = dy === 0 ? (seed % 2 === 0 ? 1 : -1) : 0;
-      let lx = p.x + nx * 12;
-      let ly = p.y + ny * 12;
-      const lw = 24, lh = 8;
-      let tries = 0;
-      while (overlaps(lx - 2, ly - 8, lw, lh) && tries < 8) { ly -= 10; tries++; }
-      reserve(lx - 4, ly - 4, 8, 8);
-      const textBlocked = overlaps(lx + 4, ly - 5, lw, lh);
-      if (!textBlocked) reserve(lx + 4, ly - 5, lw, lh);
-      svg += lugMarker(lx, ly, !textBlocked ? lug.stud : undefined);
-    };
-    if (drawPts.length > 1) {
-      markAt(drawPts[0], drawPts[1], 1);
-      markAt(drawPts[drawPts.length - 1], drawPts[drawPts.length - 2], 2);
-    }
-  }
-
   // Register laid segments for subsequent route avoidance.
-  for (let i = 0; i < drawPts.length - 1; i++) {
-    routedSegs.push({ a: drawPts[i], b: drawPts[i + 1], cls: netClass });
+  for (let i = 0; i < finalPts.length - 1; i++) {
+    routedSegs.push({ a: finalPts[i], b: finalPts[i + 1], cls: netClass });
   }
 
   return svg;
@@ -905,6 +892,25 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const S_L = Math.max(PAGE_PAD_X, LEFT_EDGE_MIN_X), S_R = W - 40, S_T = 34, S_B = FOOTER_Y - 8;
   const S_W = S_R - S_L, S_H = S_B - S_T;
   const GAP = 85;
+  // ═══ PERIMETER WIRE HIGHWAYS ═══
+  // Dedicated routing corridors along canvas edges.
+  const HIGHWAY_TOP = S_T;
+  const HIGHWAY_TOP_END = S_T + 50;
+  const HIGHWAY_BOTTOM_START = S_B - 50;
+  const HIGHWAY_BOTTOM = S_B;
+  const HIGHWAY_LEFT = S_L;
+  const HIGHWAY_LEFT_END = S_L + 40;
+  const HIGHWAY_RIGHT_START = S_R - 40;
+  const HIGHWAY_RIGHT = S_R;
+  // Component safe area — keep components inside this frame.
+  const COMP_AREA_TOP = HIGHWAY_TOP_END + 10;
+  const COMP_AREA_BOTTOM = HIGHWAY_BOTTOM_START - 10;
+  const COMP_AREA_LEFT = HIGHWAY_LEFT_END + 10;
+  const COMP_AREA_RIGHT = HIGHWAY_RIGHT_START - 10;
+  const ROW1_CENTER_Y = COMP_AREA_TOP + 60;
+  const ROW2_CENTER_Y = Math.floor((COMP_AREA_TOP + COMP_AREA_BOTTOM) / 2);
+  const ROW3_CENTER_Y = COMP_AREA_BOTTOM - 60;
+  const MIN_COMP_GAP = 80;
 
   // Scaled component geometry (~62%) to create whitespace for routing.
   const BAT_UNIT_W = scaleDim(140, 64);
@@ -994,12 +1000,12 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
 
   // Explicit layout zones with generous breathing lanes.
-  const zoneLeftX = S_L + 6;
-  const zoneCenterLeftX = S_L + Math.floor(S_W * 0.20);
-  const zoneCenterX = S_L + Math.floor(S_W * 0.40);
-  const zoneCenterRightX = S_L + Math.floor(S_W * 0.60);
-  const zoneRightX = S_L + Math.floor(S_W * 0.78);
-  colX.bat = Math.max(LEFT_EDGE_MIN_X, zoneLeftX);
+  const zoneLeftX = COMP_AREA_LEFT;
+  const zoneCenterLeftX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.20);
+  const zoneCenterX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.40);
+  const zoneCenterRightX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.60);
+  const zoneRightX = COMP_AREA_LEFT + Math.floor((COMP_AREA_RIGHT - COMP_AREA_LEFT) * 0.78);
+  colX.bat = Math.max(COMP_AREA_LEFT + 10, zoneLeftX);
   colX.chain = Math.max(zoneCenterLeftX, colX.bat + batW + Math.floor(GAP / 2));
   colX.dist = Math.max(zoneCenterX, colX.chain + scaleDim(70, 36) + Math.floor(GAP / 2));
   if (hasInv) {
@@ -1007,7 +1013,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
   if (hasShore) {
     const acFloor = hasInv ? colX.inv + INV_W + Math.floor(GAP / 2) : colX.dist + distW + Math.floor(GAP / 2);
-    colX.ac = Math.min(S_R - CU_W, Math.max(zoneRightX, acFloor));
+    colX.ac = Math.min(COMP_AREA_RIGHT - CU_W, Math.max(zoneRightX, acFloor));
   }
 
   // ── Vertical: compute hub Y so charging is above, loads below ──
@@ -1019,35 +1025,35 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const totalV = chargingH + distH + GAP + loadsH;
   const vPad = Math.max(0, Math.floor((S_H - totalV) / 3));
 
-  const distY = S_T + vPad + chargingH;
+  const distY = Math.max(ROW1_CENTER_Y, Math.min(ROW2_CENTER_Y, S_T + vPad + chargingH));
   const distX = colX['dist'];
 
   // ── Battery + Shunt (left column, vertically centered on hub) ──
-  const batX = colX['bat'];
-  const batY = distY + Math.floor(distH / 2) - Math.floor(BAT_H / 2);
+  const batX = COMP_AREA_LEFT + 10;
+  const batY = Math.max(COMP_AREA_TOP, Math.min(COMP_AREA_BOTTOM - BAT_H, distY + Math.floor(distH / 2) - Math.floor(BAT_H / 2)));
   // ENGINE RULE: Shunt (battery monitor) is placed well below the battery
   // to leave clear wiring space around both components.
-  const shuntX = colX['bat'];
-  const shuntY = batY + BAT_H + GAP + 20;
+  const shuntX = batX;
+  const shuntY = Math.min(ROW3_CENTER_Y - Math.floor(SHUNT_H / 2), batY + BAT_H + GAP + 20);
 
   // ── Iso + MIDI (stacked, between battery and hub) ──
-  const isoX = colX['chain'];
+  const isoX = Math.min(COMP_AREA_RIGHT - ISO_W, batX + batW + MIN_COMP_GAP);
   const isoY = distY + (hasLynx ? 5 : 0);
-  const midiX = colX['chain'];
+  const midiX = isoX;
   const midiY = isoY + ISO_H + 12;
 
   // ── Inverter (if present, vertically centered on hub) ──
-  const invX = hasInv ? colX['inv'] : 0;
+  const invX = hasInv ? Math.min(COMP_AREA_RIGHT - INV_W, distX + distW + MIN_COMP_GAP + 20) : 0;
   const invY = hasInv ? distY + Math.floor((distH - INV_H) / 2) : 0;
 
   // ── AC chain (right column — stacked vertically) ──
   const shoreX = hasShore ? S_R - SHORE_W - 40 : 0;
   const shoreY = hasShore ? S_T + 8 : 0;
-  const cuInX = hasShore ? Math.min(colX['ac'], S_R - CU_W - 30) : 0;
+  const cuInX = hasShore ? Math.min(COMP_AREA_RIGHT - CU_W, (hasInv ? invX + INV_W + MIN_COMP_GAP : distX + distW + MIN_COMP_GAP + 40)) : 0;
   const cuInY = hasShore ? distY + 10 : 0;
-  const cuOutX = hasShore ? Math.min(colX['ac'], S_R - CU_W - 30) : 0;
+  const cuOutX = hasShore ? cuInX : 0;
   const cuOutY = hasShore ? cuInY + CU_H + GAP : 0;
-  const acLoadsX = hasShore ? Math.min(colX['ac'] + Math.floor((CU_W - AC_LOADS_W) / 2), S_R - AC_LOADS_W - 30) : 0;
+  const acLoadsX = hasShore ? Math.min(COMP_AREA_RIGHT - AC_LOADS_W, cuInX + Math.floor((CU_W - AC_LOADS_W) / 2)) : 0;
   const acLoadsY = hasShore ? cuOutY + CU_H + Math.floor(GAP / 2) : 0;
 
   // ── Solar/MPPT chain (left → right row: Solar → PV Isolator → MPPT) ──
@@ -1059,7 +1065,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const solarChainStartX = hasMPPT
     ? Math.max(S_L + 16, Math.min(S_R - solarChainW - 12, solarChainCenter - Math.floor(solarChainW / 2)))
     : 0;
-  const solarY = hasMPPT ? distY - GAP - MPPT_H - 24 : 0;
+  const solarY = hasMPPT ? Math.max(COMP_AREA_TOP, distY - GAP - MPPT_H - 24) : 0;
   const pvDiscY = hasMPPT ? solarY + Math.floor((MPPT_H - PVDISC_H) / 2) : 0;
   const mpptY = hasMPPT ? solarY : 0;
   const solarX = hasMPPT ? solarChainStartX : 0;
@@ -1068,7 +1074,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   // ── DC-DC + Starter (lifted higher to reduce mid-field intersections) ──
   const dcdcX = hasDC ? colX['bat'] : 0;
-  const dcdcY = hasDC ? distY - GAP - DCDC_H - 24 : 0;
+  const dcdcY = hasDC ? Math.max(COMP_AREA_TOP, distY - GAP - DCDC_H - 24) : 0;
   const starterX = hasDC ? dcdcX + DCDC_W + GAP : 0;
   const starterY = hasDC ? dcdcY + Math.floor((DCDC_H - STARTER_H) / 2) : 0;
 
@@ -1095,10 +1101,10 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   // Routing corridors + keep-out zones (used by adaptive wire routing)
   const corridors = {
-    topY: S_T + 10,
-    bottomY: earthBarYClamped - 14,
-    leftX: S_L + 6,
-    rightX: S_R - 8,
+    topY: HIGHWAY_TOP + 8,
+    bottomY: HIGHWAY_BOTTOM - 8,
+    leftX: HIGHWAY_LEFT + 6,
+    rightX: HIGHWAY_RIGHT - 6,
   };
   const routingRects: Rect[] = [];
   const hardNoCrossRects: Rect[] = [];
@@ -1161,43 +1167,15 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
 
   const routeNet = (from: Pt, to: Pt, kind: NetClass, hint: RouteHint = 'auto'): Pt[] => {
-    const local = { ...corridors };
-    switch (kind) {
-      case 'dc_hi':
-        local.topY = S_T + 4;
-        local.bottomY = earthBarYClamped - 30;
-        local.leftX = S_L + 24;
-        local.rightX = S_R - 20;
-        break;
-      case 'dc_lo':
-        local.topY = S_T + 16;
-        local.bottomY = earthBarYClamped - 22;
-        if (hasMPPT) {
-          local.topY = Math.max(local.topY, solarY + 118);
-        }
-        break;
-      case 'ac_in':
-        local.rightX = S_R - 22;
-        local.leftX = Math.max(local.leftX, hasInv ? invX + Math.floor(INV_W * 0.4) : distX + distW + 20);
-        local.topY = S_T + 18;
-        local.bottomY = earthBarYClamped - 16;
-        break;
-      case 'ac_out':
-        local.rightX = S_R - 22;
-        local.leftX = Math.max(local.leftX, hasInv ? invX + Math.floor(INV_W * 0.4) : distX + distW + 20);
-        local.topY = S_T + 18;
-        local.bottomY = earthBarYClamped - 14;
-        break;
-      case 'earth':
-        local.bottomY = earthBarYClamped + 10;
-        local.leftX = S_L + 24;
-        local.rightX = S_R - 22;
-        break;
-      case 'signal':
-        local.topY = S_T + 24;
-        local.bottomY = earthBarYClamped - 28;
-        break;
-    }
+    const corridorByNet: Record<NetClass, { topY: number; bottomY: number; leftX: number; rightX: number }> = {
+      dc_hi:   { topY: HIGHWAY_TOP + 8,  bottomY: HIGHWAY_BOTTOM - 8,  leftX: HIGHWAY_LEFT + 6,  rightX: HIGHWAY_RIGHT - 6 },
+      dc_lo:   { topY: HIGHWAY_TOP + 16, bottomY: HIGHWAY_BOTTOM - 16, leftX: HIGHWAY_LEFT + 12, rightX: HIGHWAY_RIGHT - 12 },
+      ac_in:   { topY: HIGHWAY_TOP + 24, bottomY: HIGHWAY_BOTTOM - 24, leftX: HIGHWAY_LEFT + 18, rightX: HIGHWAY_RIGHT - 18 },
+      ac_out:  { topY: HIGHWAY_TOP + 30, bottomY: HIGHWAY_BOTTOM - 30, leftX: HIGHWAY_LEFT + 24, rightX: HIGHWAY_RIGHT - 24 },
+      earth:   { topY: HIGHWAY_TOP + 36, bottomY: HIGHWAY_BOTTOM - 4,  leftX: HIGHWAY_LEFT + 30, rightX: HIGHWAY_RIGHT - 30 },
+      signal:  { topY: HIGHWAY_TOP + 42, bottomY: HIGHWAY_BOTTOM - 36, leftX: HIGHWAY_LEFT + 34, rightX: HIGHWAY_RIGHT - 34 },
+    };
+    const local = { ...corridorByNet[kind] };
     // Deterministic lane spread to avoid stacking parallel runs in same corridor.
     const seed = Math.abs((from.x * 31 + from.y * 17 + to.x * 13 + to.y * 7 + kind.length * 19) | 0);
     const jitter = (seed % 7) - 3; // -3..+3 to increase lane diversity
@@ -1206,13 +1184,17 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     local.bottomY += spread;
     local.leftX += spread;
     local.rightX -= spread;
-    const frame: CorridorFrame = { minLeft: S_L + 24, maxRight: S_R - 40, minTop: S_T + 4, maxBottom: Math.min(S_B - 10, earthBarYClamped + 12) };
+    const frame: CorridorFrame = { minLeft: HIGHWAY_LEFT + 6, maxRight: HIGHWAY_RIGHT - 6, minTop: HIGHWAY_TOP + 4, maxBottom: HIGHWAY_BOTTOM - 4 };
     Object.assign(local, clampCorridors(local, frame));
     // Enforce short straight exit/entry at component ports before first bend.
     // Ports can sit a few px outside a body image; still treat them as attached.
     const fromRect = nearestContainingRect(from, routingRects) ?? nearestRectNearPoint(from, routingRects, 10);
     const toRect = nearestContainingRect(to, routingRects) ?? nearestRectNearPoint(to, routingRects, 10);
-    const escLen = kind === 'dc_hi' ? 22 : kind === 'earth' ? 20 : kind.startsWith('ac_') ? 18 : 16;
+    const escLen = kind === 'dc_hi' ? 35
+                 : kind === 'dc_lo' ? 30
+                 : kind === 'earth' ? 28
+                 : kind.startsWith('ac_') ? 32
+                 : 25;
     // ENGINE RULE: Escape points are clamped to the schematic frame.
     // Prevents wires from starting/ending outside the drawing area.
     const clampPt = (p: Pt): Pt => ({
