@@ -10,7 +10,7 @@ export function generateSchematicWebviewHTML(
   config: SystemConfig,
   imageMap: Record<string, string>,
 ): string {
-  const svgString = generateSchematicSVG(spec, config, imageMap);
+  const { page1, page2 } = generateSchematicSVG(spec, config, imageMap);
 
   return `<!DOCTYPE html>
 <html>
@@ -27,9 +27,10 @@ export function generateSchematicWebviewHTML(
 </head>
 <body>
 <div class="wrap">
-${svgString}
+${page1}
 </div>
 <script>
+window.__REFERENCE_SHEET_SVG__ = ${JSON.stringify(page2)};
 document.addEventListener('click', function(e) {
   var el = e.target.closest('[data-action="buy"]');
   if (el) {

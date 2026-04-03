@@ -77,9 +77,9 @@ function gaugeToStroke(g: number): number {
 
 const WC = { red: '#C0392B', blk: '#2C3E50', gn: '#27AE60', brn: '#8B4513', blu: '#2980B9' };
 const STUB = 20;
-const COMPONENT_SCALE = 0.62;
+const COMPONENT_SCALE = 0.72;
 const LEFT_EDGE_MIN_X = 60;
-const MIN_ROUTING_CLEARANCE = 20;
+const MIN_ROUTING_CLEARANCE = 30;
 const scaleDim = (v: number, min = 10) => Math.max(min, Math.round(v * COMPONENT_SCALE));
 // Shared terminal reference maps for visual/routing alignment.
 const LYNX_PORT_X = [56, 104, 152, 200] as const;
@@ -125,7 +125,6 @@ function simplifyPolyline(points: Pt[]): Pt[] {
 }
 
 let shownGaugeLabels = new Map<string, number>();
-let wirePathMaskAttr = '';
 interface ParallelNominalSeg {
   axis: 'h' | 'v';
   coord: number;
@@ -567,7 +566,7 @@ function wire(from: Pt, to: Pt, color: string, gauge: number, waypoints?: Pt[], 
   }
 
   // ENGINE RULE: Wire path gets a unique ID so <textPath> can reference it.
-  let svg = `<path id="w${wid}" d="${d}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}${wirePathMaskAttr}/>`;
+  let svg = `<path id="w${wid}" d="${d}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
 
   // On-wire pill labels (stamped directly on cable).
   const gaugeKey = `${netClass}:${gauge}`;
@@ -675,225 +674,8 @@ function componentKeyTable(x: number, y: number, items: { num: number; name: str
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 5. COMPONENT RENDERERS (graphics + terminals only — NO text labels)
+// 5. REFERENCE SHEET TABLES
 // ────────────────────────────────────────────────────────────────────────────
-
-function batteryComponent(x: number, y: number, capacity: string, img: string, qty: number): string {
-  let svg = '';
-  const unitW = 140;
-  const displayQty = Math.min(qty, 2);
-  for (let i = 0; i < displayQty; i++) {
-    const bx = x + i * (unitW + 12);
-    svg += `<g transform="translate(${bx},${y})">`;
-    if (img) svg += `<image href="${img}" x="0" y="0" width="${unitW}" height="90" preserveAspectRatio="xMidYMid meet"/>`;
-    else {
-      svg += `<rect x="5" y="5" width="${unitW - 10}" height="80" rx="6" fill="#2C3E50" stroke="#D9A05B" stroke-width="1.5"/>`;
-      svg += `<text x="${unitW / 2}" y="50" text-anchor="middle" font-size="12" fill="#D9A05B" font-weight="700">${capacity}</text>`;
-    }
-    svg += `<rect x="35" y="-5" width="20" height="10" rx="3" fill="#C0392B" opacity="0.85"/>`;
-    svg += `<text x="45" y="3" text-anchor="middle" font-size="7" fill="#fff" font-weight="800">+</text>`;
-    svg += `<rect x="${unitW - 55}" y="-5" width="20" height="10" rx="3" fill="#444" opacity="0.85"/>`;
-    svg += `<text x="${unitW - 45}" y="3" text-anchor="middle" font-size="7" fill="#aaa" font-weight="800">−</text>`;
-    svg += `<circle cx="45" cy="-5" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-    svg += `<circle cx="${unitW - 45}" cy="-5" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-    svg += `</g>`;
-    if (i > 0) {
-      const prevBx = x + (i - 1) * (unitW + 12);
-      svg += wire({ x: prevBx + unitW - 45, y: y - 5 }, { x: bx + unitW - 45, y: y - 5 }, WC.blk, 50);
-      svg += wire({ x: prevBx + 45, y: y - 5 }, { x: bx + 45, y: y - 5 }, WC.red, 50);
-    }
-  }
-  return svg;
-}
-
-function shuntComponent(x: number, y: number, img: string): string {
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) svg += `<image href="${img}" x="0" y="0" width="120" height="45" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<rect x="5" y="5" width="110" height="35" rx="5" fill="#2C3E50" stroke="#D9A05B"/>`;
-  svg += `<circle cx="0" cy="22" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="120" cy="22" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="60" cy="0" r="3" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `</g>`;
-  return svg;
-}
-
-function isolatorSwitch(x: number, y: number): string {
-  return `<g transform="translate(${x},${y})">
-    <rect x="3" y="3" width="54" height="48" rx="7" fill="#eee" stroke="#C0392B" stroke-width="1.5"/>
-    <circle cx="30" cy="27" r="14" fill="#C0392B"/>
-    <circle cx="30" cy="27" r="10" fill="#E74C3C"/>
-    <rect x="25" y="17" width="10" height="10" rx="2" fill="#fff" opacity="0.9"/>
-    <text x="30" y="24" text-anchor="middle" font-size="5" fill="#C0392B" font-weight="900">ON</text>
-    <circle cx="0" cy="27" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>
-    <circle cx="60" cy="27" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>
-  </g>`;
-}
-
-function pvDisconnect(x: number, y: number): string {
-  return `<g transform="translate(${x},${y})">
-    <rect x="3" y="3" width="50" height="44" rx="6" fill="#E8F4FD" stroke="#3498DB" stroke-width="1.5"/>
-    <circle cx="28" cy="25" r="12" fill="#3498DB"/>
-    <circle cx="28" cy="25" r="9" fill="#5DADE2"/>
-    <text x="28" y="28" text-anchor="middle" font-size="5" fill="#fff" font-weight="900">PV</text>
-    <circle cx="0" cy="15" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>
-    <circle cx="0" cy="35" r="3.5" fill="#444" stroke="#1A1A1A"/>
-    <circle cx="56" cy="15" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>
-    <circle cx="56" cy="35" r="3.5" fill="#444" stroke="#1A1A1A"/>
-  </g>`;
-}
-
-function midiFuseHolder(x: number, y: number, rating: string): string {
-  return `<g transform="translate(${x},${y})">
-    <rect x="0" y="0" width="46" height="28" rx="4" fill="#FFF3E0" stroke="#E67E22" stroke-width="1.5"/>
-    <rect x="7" y="5" width="32" height="18" rx="3" fill="#E67E22" opacity="0.2"/>
-    <text x="23" y="18" text-anchor="middle" font-size="8" fill="#E67E22" font-weight="800">${rating}</text>
-    <circle cx="0" cy="14" r="3.5" fill="#C0392B" stroke="#E67E22"/>
-    <circle cx="46" cy="14" r="3.5" fill="#C0392B" stroke="#E67E22"/>
-  </g>`;
-}
-
-function lynxDistributor(x: number, y: number, fuseLabels: string[], img: string): string {
-  const w = 280, h = 130;
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) {
-    svg += `<image href="${img}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" opacity="0.92"/>`;
-  } else {
-    svg += `<rect x="0" y="0" width="${w}" height="${h}" rx="6" fill="#2C3E50" stroke="#D9A05B"/>`;
-  }
-  // Aligned to likely physical output/fuse windows on the Lynx body.
-  const fuseX = [...LYNX_PORT_X];
-  for (let i = 0; i < 4; i++) {
-    const fx = fuseX[i];
-    if (fuseLabels[i]) {
-      svg += `<rect x="${fx - 9}" y="34" width="18" height="40" rx="2" fill="rgba(230,126,34,0.10)" stroke="#E67E22" stroke-width="0.8"/>`;
-      svg += `<text x="${fx}" y="58" text-anchor="middle" font-size="7.5" fill="#E67E22" font-weight="800">${fuseLabels[i]}</text>`;
-    }
-    svg += `<circle cx="${fx}" cy="4" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-    svg += `<circle cx="${fx}" cy="${h - 4}" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  }
-  svg += `<circle cx="15" cy="30" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="15" cy="100" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  svg += `</g>`;
-  return svg;
-}
-
-function busbarDual(x: number, y: number): string {
-  const w = 260;
-  let svg = `<g transform="translate(${x},${y})">`;
-  svg += `<rect x="0" y="0" width="${w}" height="16" rx="3" fill="#C0392B" opacity="0.6"/>`;
-  svg += `<text x="${w / 2}" y="12" text-anchor="middle" font-size="6.5" fill="#fff" font-weight="800">POSITIVE BUSBAR</text>`;
-  svg += `<rect x="0" y="22" width="${w}" height="16" rx="3" fill="#444"/>`;
-  svg += `<text x="${w / 2}" y="34" text-anchor="middle" font-size="6.5" fill="#aaa" font-weight="800">NEGATIVE BUSBAR</text>`;
-  for (const cx of [0, 65, 130, 195, 260]) {
-    svg += `<circle cx="${cx}" cy="8" r="3" fill="#C0392B" stroke="#1A1A1A"/>`;
-    svg += `<circle cx="${cx}" cy="30" r="3" fill="#444" stroke="#1A1A1A"/>`;
-  }
-  svg += `</g>`;
-  return svg;
-}
-
-function inverterComponent(x: number, y: number, img: string, w = 200, h = 138): string {
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) svg += `<image href="${img}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<rect x="5" y="5" width="${w - 10}" height="${h - 10}" rx="6" fill="#2C3E50" stroke="#D9A05B"/>`;
-  const px = (r: number) => Math.round(w * r);
-  svg += `<circle cx="${px(INV_PORT_RATIO.dcPos)}" cy="${h + 5}" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`; // DC+
-  svg += `<circle cx="${px(INV_PORT_RATIO.dcNeg)}" cy="${h + 5}" r="3.5" fill="#444" stroke="#1A1A1A"/>`;   // DC-
-  svg += `<circle cx="${px(INV_PORT_RATIO.earth)}" cy="${h + 5}" r="3.5" fill="#27AE60" stroke="#1A1A1A"/>`; // Earth
-  svg += `<circle cx="${px(INV_PORT_RATIO.acIn)}" cy="${h + 5}" r="3.5" fill="#3498DB" stroke="#1A1A1A"/>`; // AC in
-  svg += `<circle cx="${px(INV_PORT_RATIO.acOut)}" cy="${h + 5}" r="3.5" fill="#8B4513" stroke="#1A1A1A"/>`; // AC out
-  svg += `</g>`;
-  return svg;
-}
-
-function mpptComponent(x: number, y: number, img: string): string {
-  const w = 100, h = 100;
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) svg += `<image href="${img}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<rect x="5" y="5" width="${w - 10}" height="${h - 10}" rx="5" fill="#2C3E50" stroke="#D9A05B"/>`;
-  // Rule: PV inputs are on left side; battery outputs on bottom edge.
-  svg += `<circle cx="0" cy="30" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`; // PV+
-  svg += `<circle cx="0" cy="70" r="3.5" fill="#444" stroke="#1A1A1A"/>`;   // PV-
-  svg += `<circle cx="60" cy="${h}" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`; // BAT+
-  svg += `<circle cx="80" cy="${h}" r="3.5" fill="#444" stroke="#1A1A1A"/>`;   // BAT-
-  svg += `</g>`;
-  return svg;
-}
-
-function dcdcComponent(x: number, y: number, img: string): string {
-  const w = 120, h = 65;
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) svg += `<image href="${img}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<rect x="5" y="3" width="${w - 10}" height="${h - 6}" rx="5" fill="#2C3E50" stroke="#D9A05B"/>`;
-  // Rule: DC-DC cable entry/exit points are all on bottom edge.
-  svg += `<circle cx="24" cy="${h}" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`; // IN+
-  svg += `<circle cx="48" cy="${h}" r="3.5" fill="#444" stroke="#1A1A1A"/>`;   // IN-
-  svg += `<circle cx="72" cy="${h}" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`; // OUT+
-  svg += `<circle cx="96" cy="${h}" r="3.5" fill="#444" stroke="#1A1A1A"/>`;   // OUT-
-  svg += `</g>`;
-  return svg;
-}
-
-function solarPanels(x: number, y: number, watts: number, count: number): string {
-  const pw = 42;
-  const panelCount = Math.min(count, 3);
-  let svg = `<g transform="translate(${x},${y})">`;
-  for (let i = 0; i < panelCount; i++) {
-    const ox = i * (pw + 4);
-    svg += `<rect x="${ox}" y="0" width="${pw}" height="55" rx="2" fill="#1A3A5C" stroke="#3498DB" stroke-width="0.7"/>`;
-    for (let l = 1; l <= 3; l++) svg += `<line x1="${ox + l * (pw / 4)}" y1="1" x2="${ox + l * (pw / 4)}" y2="54" stroke="rgba(52,152,219,0.2)" stroke-width="0.4"/>`;
-    for (let l = 1; l <= 3; l++) svg += `<line x1="${ox + 1}" y1="${l * 14}" x2="${ox + pw - 1}" y2="${l * 14}" stroke="rgba(52,152,219,0.2)" stroke-width="0.4"/>`;
-  }
-  const totalPW = panelCount * (pw + 4) - 4;
-  svg += `<circle cx="${Math.floor(totalPW / 3)}" cy="60" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="${Math.floor(totalPW * 2 / 3)}" cy="60" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  svg += `</g>`;
-  return svg;
-}
-
-function starterBattery(x: number, y: number): string {
-  return `<g transform="translate(${x},${y})">
-    <rect x="0" y="8" width="80" height="40" rx="4" fill="#eee" stroke="#888"/>
-    <rect x="15" y="0" width="14" height="11" rx="2" fill="#C0392B"/>
-    <text x="22" y="8" text-anchor="middle" font-size="6" fill="#fff" font-weight="800">+</text>
-    <rect x="51" y="0" width="14" height="11" rx="2" fill="#444"/>
-    <text x="58" y="8" text-anchor="middle" font-size="6" fill="#fff" font-weight="800">−</text>
-    <text x="40" y="30" text-anchor="middle" font-size="7" fill="#333" font-weight="700">STARTER</text>
-    <text x="40" y="40" text-anchor="middle" font-size="6" fill="#888">12V</text>
-    <circle cx="22" cy="0" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>
-    <circle cx="58" cy="0" r="3.5" fill="#444" stroke="#1A1A1A"/>
-  </g>`;
-}
-
-function bpComponent(x: number, y: number, img: string): string {
-  let svg = `<g transform="translate(${x},${y})">`;
-  if (img) svg += `<image href="${img}" x="0" y="0" width="80" height="42" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<rect x="3" y="3" width="74" height="36" rx="4" fill="#2C3E50" stroke="#D9A05B"/>`;
-  svg += `<circle cx="0" cy="21" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="80" cy="21" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `</g>`;
-  return svg;
-}
-
-function fuseBlockCompact(x: number, y: number, circuitCount: number): string {
-  const w = 110, h = 48;
-  const colors = ['#E74C3C', '#E67E22', '#F1C40F', '#2ECC71', '#3498DB', '#9B59B6', '#1ABC9C', '#E74C3C'];
-  let svg = `<g transform="translate(${x},${y})">`;
-  svg += `<rect x="0" y="0" width="${w}" height="${h}" rx="5" fill="#F8F9FA" stroke="#2C3E50" stroke-width="1.5"/>`;
-  svg += `<rect x="0" y="0" width="${w}" height="18" rx="5" fill="#2C3E50"/>`;
-  svg += `<rect x="0" y="9" width="${w}" height="9" fill="#2C3E50"/>`;
-  svg += `<text x="${w / 2}" y="13" text-anchor="middle" font-size="6.5" fill="#fff" font-weight="800">12V FUSE BLOCK</text>`;
-  const slotW = Math.min(12, Math.floor((w - 16) / circuitCount) - 2);
-  const totalW = circuitCount * (slotW + 2);
-  const startX = Math.floor((w - totalW) / 2);
-  for (let i = 0; i < circuitCount; i++) {
-    svg += `<rect x="${startX + i * (slotW + 2)}" y="22" width="${slotW}" height="20" rx="2" fill="${colors[i % colors.length]}" opacity="0.7" stroke="#ddd" stroke-width="0.3"/>`;
-  }
-  svg += `<circle cx="40" cy="0" r="3.5" fill="#C0392B" stroke="#1A1A1A"/>`;
-  svg += `<circle cx="15" cy="0" r="3.5" fill="#444" stroke="#1A1A1A"/>`;
-  svg += `</g>`;
-  return svg;
-}
 
 function dcCircuitsTable(x: number, y: number, circuits: { label: string; fuseA: number }[]): string {
   const w = 175;
@@ -914,28 +696,6 @@ function dcCircuitsTable(x: number, y: number, circuits: { label: string; fuseA:
   });
   svg += `</g>`;
   return svg;
-}
-
-function earthBar(x: number, y: number, connectionCount: number): string {
-  const w = Math.max(140, connectionCount * 24 + 20);
-  let svg = `<g transform="translate(${x},${y})">`;
-  svg += `<rect x="0" y="0" width="${w}" height="16" rx="3" fill="#B8860B" stroke="#8B6914" stroke-width="1.5"/>`;
-  for (let i = 0; i < connectionCount; i++) {
-    svg += `<circle cx="${12 + i * 24}" cy="8" r="3.5" fill="#DAA520" stroke="#8B6914"/>`;
-  }
-  svg += `</g>`;
-  return svg;
-}
-
-function shoreInlet(x: number, y: number): string {
-  return `<g transform="translate(${x},${y})">
-    <circle cx="20" cy="20" r="19" fill="#2980B9" stroke="#1A5276" stroke-width="1.5"/>
-    <circle cx="20" cy="20" r="14" fill="#3498DB"/>
-    <circle cx="14" cy="15" r="2.5" fill="#1A1A1A"/>
-    <circle cx="26" cy="15" r="2.5" fill="#1A1A1A"/>
-    <circle cx="20" cy="25" r="2.5" fill="#1A1A1A"/>
-    <circle cx="20" cy="40" r="3" fill="#3498DB" stroke="#1A1A1A"/>
-  </g>`;
 }
 
 function rcdConsumerUnit(x: number, y: number, type: 'ac_in' | 'ac_out'): string {
@@ -1099,12 +859,11 @@ function regBox(x: number, y: number, w: number, standard: string, clause: strin
 // 8. MAIN GENERATOR
 // ────────────────────────────────────────────────────────────────────────────
 
-export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, imageMap: Record<string, string>): string {
+export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, imageMap: Record<string, string>): { page1: string; page2: string } {
   usedRects = [];
   routedSegs = [];
   shownGaugeLabels = new Map();
   nominalParallelSegs = [];
-  wirePathMaskAttr = '';
   wireIdCounter = 0;
 
   // Feature detection — AC visibility driven by config flags + spec nodes, not indirect assumptions.
@@ -1132,10 +891,9 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   // ═══ ZONE BOUNDARIES ═══
   // Structural step: explicit bands (main schematic + right sidebar) for predictable scaling.
   const PAGE_PAD_X = 20;
-  const SIDEBAR_W = 268;
-  const RIGHT_SIDEBAR_X = W - PAGE_PAD_X - SIDEBAR_W;
-  const FOOTER_Y = 734;
-  const BANNER_Y = 788;
+  const SIDEBAR_W = 0;
+  const RIGHT_SIDEBAR_X = W - 20;
+  const FOOTER_Y = 820;
 
   // ═══ ADAPTIVE LAYOUT ENGINE ═══
   // All positions computed from feature flags — no hardcoded pixel values.
@@ -1144,9 +902,9 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const solarCount = Math.ceil(config.solarWatts / 200);
   const earthCount = 3 + (hasInv ? 1 : 0) + (hasLPG ? 1 : 0);
 
-  const S_L = Math.max(PAGE_PAD_X, LEFT_EDGE_MIN_X), S_R = RIGHT_SIDEBAR_X - 30, S_T = 60, S_B = FOOTER_Y - 8;
+  const S_L = Math.max(PAGE_PAD_X, LEFT_EDGE_MIN_X), S_R = W - 40, S_T = 34, S_B = FOOTER_Y - 8;
   const S_W = S_R - S_L, S_H = S_B - S_T;
-  const GAP = 72;
+  const GAP = 100;
 
   // Scaled component geometry (~62%) to create whitespace for routing.
   const BAT_UNIT_W = scaleDim(140, 64);
@@ -1237,10 +995,10 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
 
   // Explicit layout zones with generous breathing lanes.
   const zoneLeftX = S_L + 6;
-  const zoneCenterLeftX = S_L + Math.floor(S_W * 0.27);
-  const zoneCenterX = S_L + Math.floor(S_W * 0.48);
-  const zoneCenterRightX = S_L + Math.floor(S_W * 0.64);
-  const zoneRightX = S_L + Math.floor(S_W * 0.80);
+  const zoneCenterLeftX = S_L + Math.floor(S_W * 0.20);
+  const zoneCenterX = S_L + Math.floor(S_W * 0.40);
+  const zoneCenterRightX = S_L + Math.floor(S_W * 0.60);
+  const zoneRightX = S_L + Math.floor(S_W * 0.78);
   colX.bat = Math.max(LEFT_EDGE_MIN_X, zoneLeftX);
   colX.chain = Math.max(zoneCenterLeftX, colX.bat + batW + Math.floor(GAP / 2));
   colX.dist = Math.max(zoneCenterX, colX.chain + scaleDim(70, 36) + Math.floor(GAP / 2));
@@ -1338,14 +1096,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     rightX: S_R - 8,
   };
   const routingRects: Rect[] = [];
-  const wireMaskRects: Rect[] = [];
   const hardNoCrossRects: Rect[] = [];
   const pushRect = (x: number, y: number, w: number, h: number) => routingRects.push({ x, y, w, h });
-  const pushWireMaskRect = (x: number, y: number, w: number, h: number) => {
-    // Strong visual lock: keep wires completely off component bodies.
-    const outset = 4;
-    wireMaskRects.push({ x: x - outset, y: y - outset, w: w + outset * 2, h: h + outset * 2 });
-  };
   const pushHardRect = (x: number, y: number, w: number, h: number, padX = MIN_ROUTING_CLEARANCE, padY = MIN_ROUTING_CLEARANCE) =>
     hardNoCrossRects.push({
       x: x - Math.max(MIN_ROUTING_CLEARANCE, padX),
@@ -1355,67 +1107,49 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     });
   // Main obstacles (full nameplates/component bodies; keep wires off text/plates)
   pushRect(batX, batY - 8, batW, BAT_H + 8);
-  pushWireMaskRect(batX, batY - 8, batW, BAT_H + 8);
   pushHardRect(batX, batY - 8, batW, BAT_H + 8);
   pushRect(shuntX, shuntY, SHUNT_W, SHUNT_H);
-  pushWireMaskRect(shuntX, shuntY, SHUNT_W, SHUNT_H);
   pushHardRect(shuntX, shuntY, SHUNT_W, SHUNT_H);
   pushRect(isoX + 2, isoY + 2, ISO_W - 4, ISO_H - 4);
-  pushWireMaskRect(isoX + 2, isoY + 2, ISO_W - 4, ISO_H - 4);
   pushHardRect(isoX + 2, isoY + 2, ISO_W - 4, ISO_H - 4);
   pushRect(midiX, midiY, MIDI_W, MIDI_H);
-  pushWireMaskRect(midiX, midiY, MIDI_W, MIDI_H);
   pushHardRect(midiX, midiY, MIDI_W, MIDI_H);
   if (hasLynx) {
     pushRect(distX, distY, DIST_W, DIST_H);
-    pushWireMaskRect(distX, distY, DIST_W, DIST_H);
     pushHardRect(distX, distY, DIST_W, DIST_H);
   } else {
     pushRect(distX, distY, DIST_W, DIST_H);
-    pushWireMaskRect(distX, distY, DIST_W, DIST_H);
     pushHardRect(distX, distY, DIST_W, DIST_H);
   }
   if (hasInv) {
     pushRect(invX, invY, INV_W, INV_H);
-    pushWireMaskRect(invX, invY, INV_W, INV_H);
     pushHardRect(invX, invY, INV_W, INV_H, 10, 8);
   }
   if (hasMPPT) {
     pushRect(solarX, solarY, solarPanelW, SOLAR_PANEL_H + 7);
-    pushWireMaskRect(solarX, solarY, solarPanelW, SOLAR_PANEL_H + 7);
     pushRect(pvDiscX, pvDiscY, PVDISC_W, PVDISC_H);
-    pushWireMaskRect(pvDiscX, pvDiscY, PVDISC_W, PVDISC_H);
     pushRect(mpptX, mpptY, MPPT_W, MPPT_H);
-    pushWireMaskRect(mpptX, mpptY, MPPT_W, MPPT_H);
     pushHardRect(pvDiscX, pvDiscY, PVDISC_W, PVDISC_H);
     pushHardRect(mpptX, mpptY, MPPT_W, MPPT_H);
   }
   if (hasDC) {
     pushRect(dcdcX, dcdcY, DCDC_W, DCDC_H);
-    pushWireMaskRect(dcdcX, dcdcY, DCDC_W, DCDC_H);
     pushRect(starterX, starterY, STARTER_W, STARTER_H);
-    pushWireMaskRect(starterX, starterY, STARTER_W, STARTER_H);
     pushHardRect(dcdcX, dcdcY, DCDC_W, DCDC_H);
     pushHardRect(starterX, starterY, STARTER_W, STARTER_H);
   }
   if (bpC) {
     pushRect(bpX, bpY, BP_W, BP_H);
-    pushWireMaskRect(bpX, bpY, BP_W, BP_H);
     pushHardRect(bpX, bpY, BP_W, BP_H);
   }
   pushRect(fbX, fbY, FB_W, FB_H);
-  pushWireMaskRect(fbX, fbY, FB_W, FB_H);
   pushHardRect(fbX, fbY, FB_W, FB_H);
   if (hasShore) {
     pushRect(shoreX, shoreY, SHORE_W, SHORE_H);
-    pushWireMaskRect(shoreX, shoreY, SHORE_W, SHORE_H);
     pushHardRect(shoreX, shoreY, SHORE_W, SHORE_H);
     pushRect(cuInX, cuInY, CU_W, CU_H);
-    pushWireMaskRect(cuInX, cuInY, CU_W, CU_H);
     pushRect(cuOutX, cuOutY, CU_W, CU_H);
-    pushWireMaskRect(cuOutX, cuOutY, CU_W, CU_H);
     pushRect(acLoadsX, acLoadsY, AC_LOADS_W, AC_LOADS_H);
-    pushWireMaskRect(acLoadsX, acLoadsY, AC_LOADS_W, AC_LOADS_H);
     pushHardRect(cuInX, cuInY, CU_W, CU_H);
     pushHardRect(cuOutX, cuOutY, CU_W, CU_H);
     pushHardRect(acLoadsX, acLoadsY, AC_LOADS_W, AC_LOADS_H);
@@ -1494,33 +1228,30 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     };
 
     // Universal halos — apply to ALL nets, ALL configurations
-    if (hasLynx) addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 22, 18);
-    else addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 12, 10);
-    if (hasInv) addHalo({ x: invX, y: invY, w: INV_W, h: INV_H }, 24, 20);
+    if (hasLynx) addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 32, 26);
+    else addHalo({ x: distX, y: distY, w: DIST_W, h: DIST_H }, 18, 15);
+    if (hasInv) addHalo({ x: invX, y: invY, w: INV_W, h: INV_H }, 36, 30);
     if (hasMPPT) {
-      addHalo({ x: mpptX, y: mpptY, w: MPPT_W, h: MPPT_H }, 16, 14);
-      addHalo({ x: solarX, y: solarY, w: solarPanelW, h: SOLAR_PANEL_H + 7 }, 8, 8);
-      addHalo({ x: pvDiscX, y: pvDiscY, w: PVDISC_W, h: PVDISC_H }, 8, 8);
+      addHalo({ x: mpptX, y: mpptY, w: MPPT_W, h: MPPT_H }, 24, 20);
+      addHalo({ x: solarX, y: solarY, w: solarPanelW, h: SOLAR_PANEL_H + 7 }, 12, 12);
+      addHalo({ x: pvDiscX, y: pvDiscY, w: PVDISC_W, h: PVDISC_H }, 12, 12);
     }
-    addHalo({ x: fbX, y: fbY, w: FB_W, h: FB_H }, 14, 12);
-    addHalo({ x: batX, y: batY - 8, w: batW, h: BAT_H + 8 }, 14, 12);
-    addHalo({ x: shuntX, y: shuntY, w: SHUNT_W, h: SHUNT_H }, 10, 8);
-    addHalo({ x: isoX, y: isoY, w: ISO_W, h: ISO_H }, 8, 8);
-    addHalo({ x: midiX, y: midiY, w: MIDI_W, h: MIDI_H }, 6, 6);
+    addHalo({ x: fbX, y: fbY, w: FB_W, h: FB_H }, 20, 18);
+    addHalo({ x: batX, y: batY - 8, w: batW, h: BAT_H + 8 }, 20, 18);
+    addHalo({ x: shuntX, y: shuntY, w: SHUNT_W, h: SHUNT_H }, 16, 12);
+    addHalo({ x: isoX, y: isoY, w: ISO_W, h: ISO_H }, 12, 12);
+    addHalo({ x: midiX, y: midiY, w: MIDI_W, h: MIDI_H }, 10, 10);
     if (hasDC) {
-      addHalo({ x: dcdcX, y: dcdcY, w: DCDC_W, h: DCDC_H }, 12, 10);
-      addHalo({ x: starterX, y: starterY, w: STARTER_W, h: STARTER_H }, 10, 8);
+      addHalo({ x: dcdcX, y: dcdcY, w: DCDC_W, h: DCDC_H }, 18, 15);
+      addHalo({ x: starterX, y: starterY, w: STARTER_W, h: STARTER_H }, 16, 12);
     }
-    if (bpC) addHalo({ x: bpX, y: bpY, w: BP_W, h: BP_H }, 10, 8);
+    if (bpC) addHalo({ x: bpX, y: bpY, w: BP_W, h: BP_H }, 16, 12);
     if (hasShore) {
-      addHalo({ x: shoreX, y: shoreY, w: SHORE_W, h: SHORE_H }, 6, 6);
-      addHalo({ x: cuInX, y: cuInY, w: CU_W, h: CU_H }, 12, 10);
-      addHalo({ x: cuOutX, y: cuOutY, w: CU_W, h: CU_H }, 12, 10);
-      addHalo({ x: acLoadsX, y: acLoadsY, w: AC_LOADS_W, h: AC_LOADS_H }, 8, 8);
+      addHalo({ x: shoreX, y: shoreY, w: SHORE_W, h: SHORE_H }, 10, 10);
+      addHalo({ x: cuInX, y: cuInY, w: CU_W, h: CU_H }, 18, 15);
+      addHalo({ x: cuOutX, y: cuOutY, w: CU_W, h: CU_H }, 18, 15);
+      addHalo({ x: acLoadsX, y: acLoadsY, w: AC_LOADS_W, h: AC_LOADS_H }, 12, 12);
     }
-    // ENGINE RULE: Sidebar is a hard exclusion zone for all routing.
-    hardRects.push({ x: RIGHT_SIDEBAR_X - 8, y: 0, w: SIDEBAR_W + 40, h: H });
-
     let routeRects = [...routingRects, ...hardRects];
     // Soft keep-out for already placed labels/pills to avoid running over text.
     if (usedRects.length > 0) {
@@ -1738,12 +1469,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   };
 
   svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#F8F9FA"/>`;
-  svg += `<defs><mask id="wire-body-mask"><rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>`;
-  for (const r of wireMaskRects) {
-    svg += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="2" fill="#000"/>`;
-  }
-  svg += `</mask></defs>`;
-  wirePathMaskAttr = ` mask="url(#wire-body-mask)"`;
 
   // Diagonal watermarks
   if (imageMap.logo) {
@@ -1757,16 +1482,14 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
 
   // ═══ HEADER BAR ═══
-  svg += `<rect x="0" y="0" width="${W}" height="52" fill="#1A1A1A"/>`;
-  if (imageMap.logo) svg += `<image href="${imageMap.logo}" x="14" y="7" width="110" height="38" preserveAspectRatio="xMidYMid meet"/>`;
-  else svg += `<text x="14" y="20" font-size="13" fill="#D9A05B" font-weight="800">CRAFTED CAMPER CO.</text>`;
-  svg += `<text x="140" y="20" font-size="9" fill="#fff" font-weight="600">Wiring Schematic</text>`;
-  svg += `<text x="140" y="36" font-size="7" fill="#888">${spec.archetype.replace(/_/g, ' ')}</text>`;
-  svg += `<text x="${W / 2}" y="20" text-anchor="middle" font-size="8" fill="#D9A05B" font-weight="600">${bat?.name ?? 'Battery'} | ${invC?.product.name ?? 'No Inverter'} | ${config.solarWatts}W Solar | ${config.dcDcAmps}A DC-DC</text>`;
-  svg += `<text x="${W / 2}" y="36" text-anchor="middle" font-size="7" fill="#888">${config.batteryAh}Ah | Cable: ${config.cableRunLength === 'short' ? '0-2m' : config.cableRunLength === 'medium' ? '2-5m' : '5-10m'}</text>`;
-  svg += `<text x="${W - 14}" y="20" text-anchor="end" font-size="7" fill="#888">${today}</text>`;
-  svg += `<text x="${W - 14}" y="36" text-anchor="end" font-size="7" fill="#D9A05B" font-weight="700">V3.0</text>`;
-  svg += `<line x1="0" y1="52" x2="${W}" y2="52" stroke="#D9A05B" stroke-width="1.5"/>`;
+  svg += `<rect x="0" y="0" width="${W}" height="26" fill="#1A1A1A"/>`;
+  if (imageMap.logo) svg += `<image href="${imageMap.logo}" x="14" y="3" width="90" height="20" preserveAspectRatio="xMidYMid meet"/>`;
+  else svg += `<text x="14" y="18" font-size="8" fill="#D9A05B" font-weight="800">CRAFTED CAMPER CO.</text>`;
+  svg += `<text x="112" y="18" font-size="6" fill="#fff" font-weight="600">Wiring Schematic</text>`;
+  svg += `<text x="${W / 2}" y="18" text-anchor="middle" font-size="6" fill="#D9A05B" font-weight="600">${spec.archetype.replace(/_/g, ' ')}</text>`;
+  svg += `<text x="${W - 70}" y="18" text-anchor="end" font-size="6" fill="#888">${today}</text>`;
+  svg += `<text x="${W - 14}" y="18" text-anchor="end" font-size="6" fill="#D9A05B" font-weight="700">V4.0</text>`;
+  svg += `<line x1="0" y1="26" x2="${W}" y2="26" stroke="#D9A05B" stroke-width="1.5"/>`;
 
   // ═══ PLACE COMPONENTS + NUMBERED BADGES ═══
   const mainFuseRating = mW?.fuseRating ? `${mW.fuseRating}A` : (mG >= 50 ? '200A' : '125A');
@@ -1850,7 +1573,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   if (hasShore) {
     svg += placeComponent('shore_inlet', 'shore_inlet', shoreX + Math.floor(SHORE_W / 2), shoreY + Math.floor(SHORE_H / 2), SHORE_W, SHORE_H);
     svg += componentNumber(shoreX + 10, shoreY + 10, N_SHORE);
-    svg += `<text x="${shoreX + 20}" y="${shoreY - 4}" text-anchor="middle" font-size="6.5" fill="#3498DB" font-weight="700">MAINS / GRID INPUT</text>`;
     svg += placeComponent('consumer_unit_in', 'consumer_unit', cuInX + Math.floor(CU_W / 2), cuInY + Math.floor(CU_H / 2), CU_W, CU_H, { label: 'AC-In Consumer Unit' });
     svg += componentNumber(cuInX + 14, cuInY + 14, N_CUIN);
     svg += placeComponent('consumer_unit_out', 'consumer_unit', cuOutX + Math.floor(CU_W / 2), cuOutY + Math.floor(CU_H / 2), CU_W, CU_H, { label: 'AC-Out Consumer Unit' });
@@ -1863,6 +1585,31 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
 
   void placedPorts;
+
+  // ═══ ZONE HEADERS ═══
+  svg += `<text x="${batX + batW / 2}" y="${Math.min(batY, shuntY) - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">BATTERY BANK</text>`;
+
+  svg += `<text x="${distX + distW / 2}" y="${distY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">DC DISTRIBUTION</text>`;
+
+  if (hasInv) {
+    svg += `<text x="${invX + INV_W / 2}" y="${invY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">INVERTER / CHARGER</text>`;
+  }
+
+  if (hasShore) {
+    svg += `<text x="${shoreX + SHORE_W / 2}" y="${shoreY - 10}" text-anchor="middle" font-size="7" fill="#3498DB" font-weight="700">MAINS / GRID INPUT</text>`;
+  }
+
+  if (hasMPPT) {
+    const solarCenterX = solarX + Math.floor((mpptX + MPPT_W - solarX) / 2);
+    svg += `<text x="${solarCenterX}" y="${solarY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">SOLAR SYSTEM</text>`;
+  }
+
+  if (hasDC) {
+    const dcdcCenterX = dcdcX + Math.floor((starterX + STARTER_W - dcdcX) / 2);
+    svg += `<text x="${dcdcCenterX}" y="${dcdcY - 24}" text-anchor="middle" font-size="8" fill="#1A1A1A" font-weight="700" letter-spacing="1">ALTERNATOR CHARGING</text>`;
+  }
+
+  svg += `<text x="${earthBarX + earthBarW / 2}" y="${earthBarY - 10}" text-anchor="middle" font-size="7" fill="#27AE60" font-weight="700">EARTH / CHASSIS BOND</text>`;
 
   // ═══ WIRES (no verbose labels — gauge badges only) ═══
 
@@ -2260,66 +2007,53 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     });
   }
 
-  // ═══ RIGHT SIDEBAR ═══
-  const sbX = RIGHT_SIDEBAR_X;
-  svg += componentKeyTable(sbX, 62, keyItems);
-
-  const keyTableH = 26 + keyItems.length * 15;
-  const sideY = 70 + keyTableH;
-  svg += colorLegend(sbX, sideY);
-  svg += iphoneMockup(sbX + 145, sideY + 5);
-  svg += glossaryBox(sbX, sideY + 88);
-  svg += qrCodePlaceholder(sbX + 180, sideY + 88);
-
-  // DC Fuse Board Circuits key (below glossary)
-  const glossaryH = 90;
-  svg += dcCircuitsTable(sbX, sideY + 88 + glossaryH + 8, fbCircuits);
-
-  // ═══ FOOTER INFO BOXES (y=700-790) ═══
-  const footerY = FOOTER_Y;
-  const boxCount = hasLPG ? 4 : 3;
-  const boxW = Math.floor((W - 40 - (boxCount - 1) * 8) / boxCount);
-
-  svg += `<g transform="translate(16,${footerY})">
-    <rect x="0" y="0" width="${boxW}" height="48" rx="4" fill="rgba(0,0,0,0.03)" stroke="#1A1A1A" stroke-width="0.6"/>
-    <text x="6" y="11" font-size="6" fill="#1A1A1A" font-weight="800">COMPULSORY READING</text>
-    <text x="6" y="22" font-size="6.5" fill="#555">All cable &amp; fuse sizes per manufacturer specs. Qualified fitter required.</text>
-    <text x="6" y="32" font-size="6.5" fill="#555">EIC must be issued prior to first use.</text>
-    <text x="6" y="42" font-size="5.5" fill="#C0392B" font-weight="600">Crafted Camper Co (Yorkshire) LTD</text>
-  </g>`;
-
-  svg += `<g transform="translate(${16 + boxW + 8},${footerY})">
-    <rect x="0" y="0" width="${boxW}" height="48" rx="4" fill="rgba(217,160,91,0.04)" stroke="#D9A05B" stroke-width="0.6"/>
-    <text x="6" y="11" font-size="6" fill="#D9A05B" font-weight="800">DC CABLE SIZING</text>
-    <text x="6" y="22" font-size="6.5" fill="#555">Run: ${config.cableRunLength} (${config.cableRunLength === 'short' ? '0-2m' : config.cableRunLength === 'medium' ? '2-5m' : '5-10m'}) — MAX battery ± to device.</text>
-    <text x="6" y="32" font-size="6.5" fill="#555">DC: Tri-Rated BS 6231. AC: H07RN-F BS EN 50525.</text>
-  </g>`;
-
-  svg += `<g transform="translate(${16 + (boxW + 8) * 2},${footerY})">
-    <rect x="0" y="0" width="${boxW}" height="48" rx="4" fill="rgba(39,174,96,0.04)" stroke="#27AE60" stroke-width="0.6"/>
-    <text x="6" y="11" font-size="6" fill="#27AE60" font-weight="800">EARTHING &amp; BONDING</text>
-    <text x="6" y="22" font-size="6.5" fill="#555">≥${spec.earthingSpec?.chassisGroundCable ?? 35}mm² neg busbar → chassis. All metal bonded.</text>
-    <text x="6" y="32" font-size="6.5" fill="#555">Ref: BS 7671:2018+A2:2022 Section 411.</text>
-  </g>`;
-
-  if (hasLPG) {
-    svg += `<g transform="translate(${16 + (boxW + 8) * 3},${footerY})">
-      <rect x="0" y="0" width="${boxW}" height="48" rx="4" fill="rgba(230,126,34,0.04)" stroke="#E67E22" stroke-width="0.6"/>
-      <text x="6" y="11" font-size="6" fill="#E67E22" font-weight="800">LPG EARTHING</text>
-      <text x="6" y="22" font-size="6.5" fill="#555">All metallic gas pipework bonded to chassis.</text>
-      <text x="6" y="32" font-size="6.5" fill="#555">4mm² green/yellow conductor. Ref: BS EN 1949:2020.</text>
-    </g>`;
-  }
-
-  // ═══ SAFETY BANNER (y=792-842) ═══
-  if (hasShore || config.inverterVA > 0) {
-    svg += `<rect x="0" y="${BANNER_Y}" width="${W}" height="${H - BANNER_Y}" fill="#C0392B"/>`;
-    svg += `<text x="${W / 2}" y="${BANNER_Y + 22}" text-anchor="middle" font-size="11" fill="#fff" font-weight="800">⚠ 230V IS EXTREMELY HAZARDOUS — DO NOT TOUCH LIVE PARTS — MUST BE INSTALLED BY A QUALIFIED FITTER ⚠</text>`;
-    svg += `<text x="${W / 2}" y="${BANNER_Y + 38}" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">All installations must comply with BS 7671. An Electrical Installation Certificate (EIC) must be issued before first use.</text>`;
-  }
-
   svg += `</svg>`;
-  return svg;
+  
+  // === PAGE 2: Reference Sheet ===
+  let page2 = `<svg xmlns="http://www.w3.org/2000/svg" width="1190" height="842" viewBox="0 0 1190 842" style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif">`;
+  page2 += `<rect x="0" y="0" width="1190" height="842" fill="#F8F9FA"/>`;
+  page2 += `<rect x="0" y="0" width="1190" height="26" fill="#1A1A1A"/>`;
+  page2 += `<text x="14" y="18" font-size="10" fill="#D9A05B" font-weight="800">CRAFTED CAMPER CO.</text>`;
+  page2 += `<text x="200" y="18" font-size="9" fill="#fff" font-weight="600">Reference Sheet</text>`;
+  page2 += `<text x="1176" y="18" text-anchor="end" font-size="7" fill="#D9A05B" font-weight="700">V4.0</text>`;
+  page2 += `<line x1="0" y1="26" x2="1190" y2="26" stroke="#D9A05B" stroke-width="1.5"/>`;
+  
+  // Move component key to page 2 — render at x=40, full width
+  page2 += componentKeyTable(40, 44, keyItems);
+  
+  // Wire colour legend
+  const p2KeyH = 26 + keyItems.length * 15;
+  page2 += colorLegend(40, 52 + p2KeyH);
+  
+  // Glossary
+  page2 += glossaryBox(40, 52 + p2KeyH + 88);
+  
+  // iPhone mockup + QR
+  page2 += iphoneMockup(400, 52 + p2KeyH);
+  page2 += qrCodePlaceholder(520, 52 + p2KeyH);
+  
+  // DC Fuse Board Circuits
+  page2 += dcCircuitsTable(40, 52 + p2KeyH + 88 + 98, fbCircuits);
+  
+  // Footer info boxes
+  const p2FooterY = 680;
+  const p2BoxW = Math.floor((1190 - 40 - 24) / 3);
+  page2 += `<g transform="translate(16,${p2FooterY})">`;
+  page2 += `<rect x="0" y="0" width="${p2BoxW}" height="48" rx="4" fill="rgba(0,0,0,0.03)" stroke="#1A1A1A" stroke-width="0.6"/>`;
+  page2 += `<text x="6" y="11" font-size="6" fill="#1A1A1A" font-weight="800">COMPULSORY READING</text>`;
+  page2 += `<text x="6" y="22" font-size="6.5" fill="#555">All cable &amp; fuse sizes per manufacturer specs. Qualified fitter required.</text>`;
+  page2 += `<text x="6" y="32" font-size="6.5" fill="#555">EIC must be issued prior to first use.</text>`;
+  page2 += `<text x="6" y="42" font-size="5.5" fill="#C0392B" font-weight="600">Crafted Camper Co (Yorkshire) LTD</text>`;
+  page2 += `</g>`;
+  
+  // Safety banner
+  page2 += `<rect x="0" y="792" width="1190" height="50" fill="#C0392B"/>`;
+  page2 += `<text x="595" y="814" text-anchor="middle" font-size="11" fill="#fff" font-weight="800">⚠ 230V IS EXTREMELY HAZARDOUS — MUST BE INSTALLED BY A QUALIFIED FITTER ⚠</text>`;
+  page2 += `<text x="595" y="830" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">All installations must comply with BS 7671. An EIC must be issued before first use.</text>`;
+  
+  page2 += `</svg>`;
+  
+  return { page1: svg, page2 };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -134,7 +134,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Leisure Battery',
     defaultW: 110,
     defaultH: 95,
-    keepOutPadding: 12,
+    keepOutPadding: 20,
     ports: {
       positive_terminal: {
         exit: 'up',
@@ -155,7 +155,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Starter Battery',
     defaultW: 90,
     defaultH: 70,
-    keepOutPadding: 10,
+    keepOutPadding: 16,
     ports: {
       positive_terminal: {
         exit: 'up',
@@ -180,7 +180,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'SmartShunt',
     defaultW: 80,
     defaultH: 48,
-    keepOutPadding: 10,
+    keepOutPadding: 16,
     ports: {
       batt_neg_in: {
         exit: 'left',
@@ -207,7 +207,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'MultiPlus Inverter-Charger',
     defaultW: 130,
     defaultH: 122,
-    keepOutPadding: 14,
+    keepOutPadding: 24,
     ports: {
       // All MultiPlus ports exit DOWNWARD (terminal block is on the bottom)
       earth_terminal: {
@@ -247,7 +247,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'MPPT Charge Controller',
     defaultW: 100,
     defaultH: 100,
-    keepOutPadding: 12,
+    keepOutPadding: 18,
     ports: {
       // PV input terminals on top
       pv_positive: {
@@ -282,7 +282,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'DC-DC Charger',
     defaultW: 100,
     defaultH: 62,
-    keepOutPadding: 10,
+    keepOutPadding: 18,
     ports: {
       // Input from starter battery on left
       in_positive: {
@@ -317,7 +317,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Battery Protect',
     defaultW: 85,
     defaultH: 72,
-    keepOutPadding: 10,
+    keepOutPadding: 16,
     ports: {
       in_positive: {
         exit: 'up',
@@ -342,7 +342,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Lynx Distributor',
     defaultW: 150,
     defaultH: 92,
-    keepOutPadding: 14,
+    keepOutPadding: 24,
     ports: {
       // Lynx has dynamic fuse-position ports (fuse_out_1..N)
       // Plus pos_in / neg_in on the busbar rails.
@@ -376,7 +376,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Dual Busbar',
     defaultW: 120,
     defaultH: 36,
-    keepOutPadding: 10,
+    keepOutPadding: 16,
     ports: {
       // Dynamic ports: pos_in, neg_in, pos_out_0..N, neg_out_0..N
       pos_in: {
@@ -411,7 +411,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'MIDI/MEGA Fuse',
     defaultW: 56,
     defaultH: 32,
-    keepOutPadding: 8,
+    keepOutPadding: 12,
     ports: {
       in_positive: {
         exit: 'up',
@@ -432,7 +432,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Isolator Switch',
     defaultW: 52,
     defaultH: 52,
-    keepOutPadding: 8,
+    keepOutPadding: 14,
     ports: {
       in_positive: {
         exit: 'up',
@@ -453,7 +453,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Blade Fuse Block',
     defaultW: 140,
     defaultH: 52,
-    keepOutPadding: 10,
+    keepOutPadding: 18,
     ports: {
       pos_in: {
         exit: 'up',
@@ -481,7 +481,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Earth Bar',
     defaultW: 100,
     defaultH: 16,
-    keepOutPadding: 8,
+    keepOutPadding: 14,
     ports: {
       // Single chassis connection downward
       chassis: {
@@ -509,7 +509,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Solar Panel',
     defaultW: 70,
     defaultH: 88,
-    keepOutPadding: 10,
+    keepOutPadding: 12,
     ports: {
       // Cables exit from the bottom of the panel (junction box)
       pv_positive: {
@@ -531,7 +531,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'PV Isolator',
     defaultW: 42,
     defaultH: 36,
-    keepOutPadding: 8,
+    keepOutPadding: 12,
     ports: {
       pv_in_positive: {
         exit: 'up',
@@ -552,7 +552,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Shore Power Inlet',
     defaultW: 80,
     defaultH: 80,
-    keepOutPadding: 10,
+    keepOutPadding: 12,
     ports: {
       // Shore inlet cables exit upward toward the consumer unit
       ac_line: {
@@ -580,7 +580,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Consumer Unit',
     defaultW: 130,
     defaultH: 62,
-    keepOutPadding: 10,
+    keepOutPadding: 18,
     ports: {
       // Single AC input from top
       ac_in: {
@@ -607,7 +607,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'Consumer Appliance',
     defaultW: 60,
     defaultH: 40,
-    keepOutPadding: 8,
+    keepOutPadding: 12,
     ports: {
       // DC consumers connect via positive (from fuse block) and negative
       positive_in: {
@@ -629,7 +629,7 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
     displayName: 'AC Consumer Appliance',
     defaultW: 60,
     defaultH: 40,
-    keepOutPadding: 8,
+    keepOutPadding: 12,
     ports: {
       ac_in: {
         exit: 'up',
@@ -668,13 +668,13 @@ export const ROUTING = {
    * offset each subsequent wire by this many px.
    * This prevents overlapping positive/negative runs.
    */
-  parallelWireSpacing: 5,
+  parallelWireSpacing: 12,
 
   /**
    * When a positive and negative wire run together (e.g. battery to busbar),
    * maintain this fixed centre-to-centre spacing between the pair.
    */
-  pairedWireSpacing: 8,
+  pairedWireSpacing: 16,
 
   // ─── KEEP-OUT ZONE ENFORCEMENT ────────────────────────────────
 

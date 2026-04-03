@@ -120,7 +120,8 @@ export function generateSchematicPDFHTML(
   projectName: string,
   imageMap: Record<string, string> = {},
 ): string {
-  const diagram = generateSchematicSVG(spec, config, imageMap);
+  const { page1, page2 } = generateSchematicSVG(spec, config, imageMap);
+  const referenceSheet = page2;
   const compTotal = spec.components.reduce((s, c) => s + (c.product.estimatedPrice ?? 0), 0);
   const logoSrc = imageMap.logo || '';
 
@@ -160,8 +161,9 @@ export function generateSchematicPDFHTML(
 
 <!-- PAGE 1: Full Schematic Diagram (Landscape — maximised, SVG has its own header) -->
 <div class="schematic-page">
-  <div class="diagram-full">${diagram}</div>
+  <div class="diagram-full">${page1}</div>
 </div>
+<!-- REFERENCE_SHEET_SVG_LENGTH:${referenceSheet.length} -->
 
 <!-- PAGE 2: System Overview + Components -->
 <div class="page">
