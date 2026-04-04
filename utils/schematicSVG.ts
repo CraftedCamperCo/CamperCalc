@@ -5,7 +5,7 @@
  * Clean wire routing with gauge-only labels (no verbose descriptions).
  * Regulation boxes stacked in left margin. Sidebar for key/legend/glossary.
  */
-import { drawComponent, type ComponentSpec } from './schematicComponents';
+import { drawComponent, drawLug, type ComponentSpec } from './schematicComponents';
 import {
   COMPONENT_RULES,
   GAUGE_STROKE,
@@ -76,7 +76,7 @@ function gaugeToStroke(g: number): number {
 
 const WC = { red: '#C0392B', blk: '#2C3E50', gn: '#27AE60', brn: '#8B4513', blu: '#2980B9' };
 const STUB = 20;
-const COMPONENT_SCALE = 0.72;
+const COMPONENT_SCALE = 0.85;
 const LEFT_EDGE_MIN_X = 60;
 const scaleDim = (v: number, min = 10) => Math.max(min, Math.round(v * COMPONENT_SCALE));
 // ENGINE RULE: MultiPlus port positions match the real product bottom edge.
@@ -293,21 +293,25 @@ function wire(from: Pt, to: Pt, color: string, gauge: number, waypoints?: Pt[], 
       const midX = (finalPts[bestIdx].x + finalPts[bestIdx + 1].x) / 2;
       const midY = (finalPts[bestIdx].y + finalPts[bestIdx + 1].y) / 2;
       const gLabel = `${gauge}mm²`;
-      const labelW = gLabel.length * 3.2 + 4;
-      const labelH = 7;
-      const bgFill = color === WC.red ? 'rgba(192,57,43,0.85)'
-                   : color === WC.blk ? 'rgba(44,62,80,0.85)'
-                   : color === WC.gn ? 'rgba(39,174,96,0.85)'
-                   : color === WC.blu ? 'rgba(41,128,185,0.85)'
-                   : 'rgba(80,80,80,0.85)';
+
+      // Label sized to fit WITHIN the wire stroke thickness
+      const sw = strokeWidth ?? gaugeToStroke(gauge);
+      const labelH = Math.max(sw, 5); // pill height = wire thickness (min 5px)
+      const fontSize = Math.min(labelH * 0.75, 5); // font scales with wire
+      const labelW = gLabel.length * fontSize * 0.65 + 4;
+      const bgFill = color === WC.red ? 'rgba(192,57,43,0.92)'
+                   : color === WC.blk ? 'rgba(44,62,80,0.92)'
+                   : color === WC.gn ? 'rgba(39,174,96,0.92)'
+                   : color === WC.blu ? 'rgba(41,128,185,0.92)'
+                   : 'rgba(80,80,80,0.92)';
       if (bestIsVert) {
         svg += `<g transform="rotate(-90, ${midX}, ${midY})">`;
-        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="2" fill="${bgFill}"/>`;
-        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="4" fill="#FFF" font-weight="600" font-family="Arial,sans-serif">${gLabel}</text>`;
+        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="${labelH / 2}" fill="${bgFill}"/>`;
+        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}" fill="#FFF" font-weight="700" font-family="Arial,sans-serif">${gLabel}</text>`;
         svg += `</g>`;
       } else {
-        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="2" fill="${bgFill}"/>`;
-        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="4" fill="#FFF" font-weight="600" font-family="Arial,sans-serif">${gLabel}</text>`;
+        svg += `<rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" rx="${labelH / 2}" fill="${bgFill}"/>`;
+        svg += `<text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}" fill="#FFF" font-weight="700" font-family="Arial,sans-serif">${gLabel}</text>`;
       }
       usedRects.push({ x: midX - labelW / 2, y: midY - labelH / 2, w: labelW, h: labelH });
       shownGaugeLabels.set(gaugeKey, shownCount + 1);
@@ -438,6 +442,20 @@ function groundSymbol(x: number, y: number): string {
     <line x1="10" y1="18" x2="30" y2="18" stroke="#27AE60" stroke-width="1.5"/>
     <line x1="14" y1="23" x2="26" y2="23" stroke="#27AE60" stroke-width="1"/>
   </g>`;
+}
+
+function inlineGround(cx: number, topY: number, label?: string): string {
+  const stubLen = 20;
+  const symY = topY + stubLen;
+  let s = '';
+  s += `<line x1="${cx}" y1="${topY}" x2="${cx}" y2="${symY}" stroke="#27AE60" stroke-width="1.5" stroke-dasharray="4,2"/>`;
+  s += `<line x1="${cx - 10}" y1="${symY}" x2="${cx + 10}" y2="${symY}" stroke="#27AE60" stroke-width="2"/>`;
+  s += `<line x1="${cx - 6}" y1="${symY + 5}" x2="${cx + 6}" y2="${symY + 5}" stroke="#27AE60" stroke-width="1.5"/>`;
+  s += `<line x1="${cx - 3}" y1="${symY + 9}" x2="${cx + 3}" y2="${symY + 9}" stroke="#27AE60" stroke-width="1"/>`;
+  if (label) {
+    s += `<text x="${cx}" y="${symY + 19}" text-anchor="middle" font-size="4.5" fill="#27AE60" font-weight="600">${label}</text>`;
+  }
+  return s;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -645,34 +663,41 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     consumer_unit: { w: CU_W, h: CU_H },
     ac_loads: { w: AC_LOADS_W, h: AC_LOADS_H },
   } as const;
-  const COL = { gen: 160, mgmt: 540, dist: 920 } as const;
+  const COL = { gen: 140, mgmt: 575, dist: 1030 } as const;
   const COL_BOUNDS = {
-    gen: { x: 0, w: 310 },
-    mgmt: { x: 330, w: 430 },
-    dist: { x: 780, w: 410 },
+    gen: { x: 0, w: 280 },
+    mgmt: { x: 290, w: 570 },
+    dist: { x: 870, w: 320 },
   } as const;
   const POS = {
-    battery_1: { cx: 530, cy: 720 },
-    battery_2: { cx: 640, cy: 720 },
-    smart_shunt: { cx: 660, cy: 610 },
-    main_midi_fuse: { cx: 430, cy: 560 },
-    battery_isolator: { cx: 430, cy: 635 },
-    distribution: { cx: 540, cy: 410 },
-    battery_protect: { cx: 740, cy: 410 },
-    fuse_block: { cx: 920, cy: 410 },
+    // ── Generation column (left, x: 0–280) ──
+    shore_inlet: { cx: 140, cy: 110 },
+    solar_panel_1: { cx: 90, cy: 210 },
+    solar_panel_2: { cx: 140, cy: 210 },
+    solar_panel_3: { cx: 190, cy: 210 },
+    pv_disconnect: { cx: 140, cy: 300 },
+    mppt: { cx: 140, cy: 410 },
+    starter_battery: { cx: 80, cy: 700 },
+    dcdc: { cx: 200, cy: 700 },
+
+    // ── Management column (centre, x: 290–860) ──
+    consumer_unit_in: { cx: 400, cy: 115 },
+    inverter: { cx: 680, cy: 165 },
+    distribution: { cx: 560, cy: 400 },
+    main_midi_fuse: { cx: 440, cy: 540 },
+    battery_isolator: { cx: 440, cy: 635 },
+    smart_shunt: { cx: 690, cy: 625 },
+    battery_1: { cx: 530, cy: 740 },
+    battery_2: { cx: 660, cy: 740 },
+
+    // ── Distribution column (right, x: 870–1190) ──
+    consumer_unit_out: { cx: 1000, cy: 120 },
+    ac_loads: { cx: 1000, cy: 250 },
+    battery_protect: { cx: 940, cy: 400 },
+    fuse_block: { cx: 1080, cy: 400 },
+
+    // Legacy (earth bar removed in 7C, kept for type safety)
     earth_bar: { cx: 530, cy: 800 },
-    solar_panel_1: { cx: 110, cy: 310 },
-    solar_panel_2: { cx: 160, cy: 310 },
-    solar_panel_3: { cx: 210, cy: 310 },
-    pv_disconnect: { cx: 140, cy: 380 },
-    mppt: { cx: 140, cy: 465 },
-    starter_battery: { cx: 90, cy: 600 },
-    dcdc: { cx: 210, cy: 600 },
-    inverter: { cx: 620, cy: 150 },
-    shore_inlet: { cx: 120, cy: 110 },
-    consumer_unit_in: { cx: 390, cy: 110 },
-    consumer_unit_out: { cx: 900, cy: 120 },
-    ac_loads: { cx: 900, cy: 240 },
   } as const;
   const invPortX = (ratio: number) => Math.round(INV_W * ratio);
   const invX = POS.inverter.cx - Math.floor(INV_W / 2);
@@ -707,7 +732,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   }
   if (bpC) registerRect(POS.battery_protect.cx, POS.battery_protect.cy, DIM.battery_protect.w, DIM.battery_protect.h);
   registerRect(POS.fuse_block.cx, POS.fuse_block.cy, DIM.fuse_block.w, DIM.fuse_block.h);
-  registerRect(POS.earth_bar.cx, POS.earth_bar.cy, DIM.earth_bar.w, DIM.earth_bar.h);
   if (hasShore) {
     registerRect(POS.shore_inlet.cx, POS.shore_inlet.cy, DIM.shore_inlet.w, DIM.shore_inlet.h);
     registerRect(POS.consumer_unit_in.cx, POS.consumer_unit_in.cy, DIM.consumer_unit.w, DIM.consumer_unit.h);
@@ -778,7 +802,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   let N_BP = 0;
   if (bpC) { N_BP = ++compNum; keyItems.push({ num: N_BP, name: `BatteryProtect`, detail: `${bpC.product.specs.maxCurrent}A` }); }
   const N_FB = ++compNum; keyItems.push({ num: N_FB, name: '12V Fuse Block', detail: `${fbCircuits.length} circuits` });
-  const N_EARTH = ++compNum; keyItems.push({ num: N_EARTH, name: 'Earth Bar + Chassis', detail: 'Bonding' });
   let N_SHORE = 0, N_CUIN = 0, N_CUOUT = 0, N_ACLOADS = 0;
   if (hasShore) {
     N_SHORE = ++compNum; keyItems.push({ num: N_SHORE, name: '16A CEE Shore Inlet', detail: 'Grid/Campsite' });
@@ -873,31 +896,22 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       bat?.model,
     );
   }
-  svg += componentNumber(POS.battery_1.cx - DIM.battery.w / 2 + 22, POS.battery_1.cy - DIM.battery.h / 2 + 16, N_BAT);
-
   svg += placeComponent('smart_shunt', 'smartshunt', POS.smart_shunt.cx, POS.smart_shunt.cy, DIM.smartshunt.w, DIM.smartshunt.h, {}, shuntC?.product.model);
-  svg += componentNumber(POS.smart_shunt.cx - DIM.smartshunt.w / 2 + 12, POS.smart_shunt.cy - DIM.smartshunt.h / 2 + 13, N_SHUNT);
 
   svg += placeComponent('battery_isolator', 'isolator', POS.battery_isolator.cx, POS.battery_isolator.cy, DIM.isolator.w, DIM.isolator.h);
-  svg += componentNumber(POS.battery_isolator.cx - DIM.isolator.w / 2 + 14, POS.battery_isolator.cy - DIM.isolator.h / 2 + 14, N_ISO);
 
   svg += placeComponent('main_midi_fuse', 'midi_fuse', POS.main_midi_fuse.cx, POS.main_midi_fuse.cy, DIM.midi_fuse.w, DIM.midi_fuse.h, { amps: mainFuseAmps });
-  svg += componentNumber(POS.main_midi_fuse.cx - DIM.midi_fuse.w / 2 + 10, POS.main_midi_fuse.cy - DIM.midi_fuse.h / 2 + 12, N_MIDI);
 
   if (hasLynx) {
     svg += placeComponent('distribution', 'lynx', POS.distribution.cx, POS.distribution.cy, DIM.lynx.w, DIM.lynx.h, {}, 'LYN060102010');
   } else {
     svg += placeComponent('distribution', 'busbar', POS.distribution.cx, POS.distribution.cy, DIM.lynx.w, DIM.lynx.h, {}, 'BUSBAR-POS');
   }
-  svg += componentNumber(POS.distribution.cx - DIM.lynx.w / 2 + 18, POS.distribution.cy - DIM.lynx.h / 2 + 16, N_DIST);
-
   if (hasInv && invC) {
     svg += placeComponent('inverter', 'multiplus', POS.inverter.cx, POS.inverter.cy, DIM.multiplus.w, DIM.multiplus.h, { model: invC.product.model }, invC.product.model);
-    svg += componentNumber(POS.inverter.cx - DIM.multiplus.w / 2 + 18, POS.inverter.cy - DIM.multiplus.h / 2 + 18, N_INV);
   }
   if (hasMPPT && mpptC) {
     svg += placeComponent('mppt', 'mppt', POS.mppt.cx, POS.mppt.cy, DIM.mppt.w, DIM.mppt.h, { model: mpptC.product.model }, mpptC.product.model);
-    svg += componentNumber(POS.mppt.cx - DIM.mppt.w / 2 + 14, POS.mppt.cy - DIM.mppt.h / 2 + 14, N_MPPT);
     const panelCount = Math.min(solarCount, 3);
     const panelW = SOLAR_PANEL_W;
     const panelH = SOLAR_PANEL_H;
@@ -905,15 +919,11 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       const panelPos = i === 0 ? POS.solar_panel_1 : i === 1 ? POS.solar_panel_2 : POS.solar_panel_3;
       svg += placeComponent(`solar_panel_${i + 1}`, 'solar_panel', panelPos.cx, panelPos.cy, panelW, panelH, { watts: Math.round(config.solarWatts / panelCount) });
     }
-    svg += componentNumber(POS.solar_panel_1.cx - DIM.solar_panel.w / 2 + 14, POS.solar_panel_1.cy - DIM.solar_panel.h / 2 + 14, N_SOLAR);
     svg += placeComponent('pv_disconnect', 'pv_disconnect', POS.pv_disconnect.cx, POS.pv_disconnect.cy, DIM.pv_disconnect.w, DIM.pv_disconnect.h);
-    svg += componentNumber(POS.pv_disconnect.cx - DIM.pv_disconnect.w / 2 + 14, POS.pv_disconnect.cy - DIM.pv_disconnect.h / 2 + 14, N_PVDISC);
   }
   if (hasDC && dcdcC) {
     svg += placeComponent('dcdc', 'orion', POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h, { model: dcdcC.product.model }, dcdcC.product.model);
-    svg += componentNumber(POS.dcdc.cx - DIM.orion.w / 2 + 14, POS.dcdc.cy - DIM.orion.h / 2 + 14, N_DCDC);
     svg += placeComponent('starter_battery', 'starter_battery', POS.starter_battery.cx, POS.starter_battery.cy, DIM.starter_bat.w, DIM.starter_bat.h);
-    svg += componentNumber(POS.starter_battery.cx - DIM.starter_bat.w / 2 + 14, POS.starter_battery.cy - DIM.starter_bat.h / 2 + 14, N_STARTER);
   }
   if (bpC) {
     svg += placeComponent(
@@ -925,27 +935,29 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       DIM.battery_protect.h,
       { amps: Number(bpC.product.specs.maxCurrent) || 100 },
     );
-    svg += componentNumber(POS.battery_protect.cx - DIM.battery_protect.w / 2 + 14, POS.battery_protect.cy - DIM.battery_protect.h / 2 + 14, N_BP);
   }
   svg += placeComponent('fuse_block', 'fuse_block', POS.fuse_block.cx, POS.fuse_block.cy, DIM.fuse_block.w, DIM.fuse_block.h);
-  svg += componentNumber(POS.fuse_block.cx - DIM.fuse_block.w / 2 + 14, POS.fuse_block.cy - DIM.fuse_block.h / 2 + 14, N_FB);
-
-  svg += placeComponent('earth_bar', 'earth_bar', POS.earth_bar.cx, POS.earth_bar.cy, earthBarW, 16);
-  svg += groundSymbol(groundX, groundY);
-  svg += componentNumber(POS.earth_bar.cx - earthBarW / 2 + 14, POS.earth_bar.cy, N_EARTH);
 
   if (hasShore) {
     svg += placeComponent('shore_inlet', 'shore_inlet', POS.shore_inlet.cx, POS.shore_inlet.cy, DIM.shore_inlet.w, DIM.shore_inlet.h);
-    svg += componentNumber(POS.shore_inlet.cx - DIM.shore_inlet.w / 2 + 10, POS.shore_inlet.cy - DIM.shore_inlet.h / 2 + 10, N_SHORE);
     svg += placeComponent('consumer_unit_in', 'consumer_unit', POS.consumer_unit_in.cx, POS.consumer_unit_in.cy, DIM.consumer_unit.w, DIM.consumer_unit.h, { label: 'AC-In Consumer Unit' });
-    svg += componentNumber(POS.consumer_unit_in.cx - DIM.consumer_unit.w / 2 + 14, POS.consumer_unit_in.cy - DIM.consumer_unit.h / 2 + 14, N_CUIN);
     svg += placeComponent('consumer_unit_out', 'consumer_unit', POS.consumer_unit_out.cx, POS.consumer_unit_out.cy, DIM.consumer_unit.w, DIM.consumer_unit.h, { label: 'AC-Out Consumer Unit' });
-    svg += componentNumber(POS.consumer_unit_out.cx - DIM.consumer_unit.w / 2 + 14, POS.consumer_unit_out.cy - DIM.consumer_unit.h / 2 + 14, N_CUOUT);
     svg += acLoadsSocket(acLoadsX, acLoadsY);
     placedPorts.ac_loads = { ac_in: { x: POS.ac_loads.cx, y: acLoadsY + 1 } };
     placedComponentTypes.ac_loads = 'consumer_ac';
     placedComponentSku.ac_loads = undefined;
-    svg += componentNumber(acLoadsX + 12, acLoadsY + 12, N_ACLOADS);
+  }
+
+  // ═══ INLINE CHASSIS GROUND SYMBOLS ═══
+  if (hasInv) {
+    const invEarthPort = placedPorts.inverter?.earth_terminal;
+    if (invEarthPort) svg += inlineGround(invEarthPort.x, invEarthPort.y + 16, 'CHASSIS');
+  }
+  const distNegPort = placedPorts.distribution?.[hasLynx ? 'busbar_neg' : 'neg_in'];
+  if (distNegPort) svg += inlineGround(distNegPort.x, distNegPort.y + 14, 'CHASSIS');
+  if (hasShore) {
+    const shoreEarthPort = placedPorts.shore_inlet?.earth;
+    if (shoreEarthPort) svg += inlineGround(shoreEarthPort.x, shoreEarthPort.y + 14, 'CHASSIS');
   }
 
   void placedPorts;
@@ -958,7 +970,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     svg += `<text x="${(POS.starter_battery.cx + POS.dcdc.cx) / 2}" y="${POS.dcdc.cy - DIM.orion.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#388E3C" font-weight="600">ALTERNATOR CHARGING</text>`;
   }
   svg += `<text x="${POS.distribution.cx}" y="${POS.distribution.cy - DIM.lynx.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#F57F17" font-weight="600">LYNX DISTRIBUTION</text>`;
-  svg += `<text x="${POS.earth_bar.cx}" y="${POS.earth_bar.cy - 12}" text-anchor="middle" font-size="5.5" fill="#27AE60" font-weight="600">EARTH / CHASSIS</text>`;
   if (hasShore) {
     svg += `<text x="${POS.shore_inlet.cx}" y="${POS.shore_inlet.cy - DIM.shore_inlet.h / 2 - 10}" text-anchor="middle" font-size="6" fill="#3498DB" font-weight="600">SHORE</text>`;
   }
@@ -1001,48 +1012,44 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const WIRE_STRATEGIES: Record<string, RouteStrategy> = {
     // ── AC PATH (top row, left → right) ──
     'shore_inlet:ac_line→consumer_unit_in:ac_in': 'direct',
-    'consumer_unit_in:ac_out_1→inverter:ac_in': { hwy: 230 },
-    'inverter:ac_out→consumer_unit_out:ac_in': { vwy: 770 },
+    'consumer_unit_in:ac_out_1→inverter:ac_in': { hwy: 250 },
+    'inverter:ac_out→consumer_unit_out:ac_in': { vwy: 780 },
     'consumer_unit_out:ac_out_1→ac_loads:ac_in': 'direct-v',
 
     // ── SOLAR PATH (generation column vertical stack) ──
     'solar_panel_1:pv_positive→pv_disconnect:pv_in_positive': 'direct-v',
-    'solar_panel_1:pv_negative→mppt:pv_negative': { vwy: 220 },
+    'solar_panel_1:pv_negative→mppt:pv_negative': { vwy: 65 },
     'pv_disconnect:pv_out_positive→mppt:pv_positive': 'direct-v',
-    'distribution:fuse_out_2→mppt:bat_positive': { hwy: 530 },
-    'distribution:busbar_neg→mppt:bat_negative': { hwy: 540 },
+    'distribution:fuse_out_2→mppt:bat_positive': { hwy: 490 },
+    'distribution:busbar_neg→mppt:bat_negative': { hwy: 500 },
 
-    // ── DC-DC PATH (generation column → management via x≈332-340 corridor) ──
+    // ── DC-DC PATH (generation column → management via x≈330-340 corridor) ──
     'starter_battery:positive_terminal→dcdc:in_positive': 'direct',
     'starter_battery:negative_terminal→dcdc:in_negative': 'direct',
     'dcdc:out_positive→distribution:fuse_out_3': { vwy: 340 },
-    'dcdc:out_negative→distribution:busbar_neg': { vwy: 332 },
+    'dcdc:out_negative→distribution:busbar_neg': { vwy: 330 },
 
-    // ── BATTERY POSITIVE CHAIN (management column vertical) ──
-    'battery_1:positive_terminal→main_midi_fuse:in_positive': { pts: [[530, 520], [430, 520]] },
+    // ── BATTERY POSITIVE CHAIN (management column, left sub-column) ──
+    'battery_1:positive_terminal→main_midi_fuse:in_positive': { pts: [[530, 500], [440, 500]] },
     'main_midi_fuse:out_positive→battery_isolator:in_positive': 'direct-v',
-    'battery_isolator:out_positive→distribution:busbar_in': { vwy: 380 },
+    'battery_isolator:out_positive→distribution:busbar_in': { vwy: 395 },
 
-    // ── BATTERY NEGATIVE CHAIN ──
-    'battery_1:negative_terminal→smart_shunt:batt_neg_in': { pts: [[560, 580]] },
+    // ── BATTERY NEGATIVE CHAIN (management column, right sub-column) ──
+    'battery_1:negative_terminal→smart_shunt:batt_neg_in': { pts: [[550, 580]] },
     'battery_2:negative_terminal→smart_shunt:batt_neg_in': { pts: [[660, 580]] },
-    'smart_shunt:system_neg_out→distribution:busbar_neg': { vwy: 700 },
+    'smart_shunt:system_neg_out→distribution:busbar_neg': { vwy: 750 },
 
     // ── SIGNAL ──
     'smart_shunt:aux_sense→battery_1:positive_terminal': 'direct',
 
-    // ── INVERTER DC (management → inverter via x≈680-690 corridor) ──
-    'distribution:fuse_out_1→inverter:dc_positive': { vwy: 680 },
-    'distribution:busbar_neg→inverter:dc_negative': { vwy: 690 },
-    'inverter:earth_terminal→earth_bar:in_1': { vwy: 775 },
+    // ── INVERTER DC (management → inverter via x≈720-735 corridor) ──
+    'distribution:fuse_out_1→inverter:dc_positive': { vwy: 720 },
+    'distribution:busbar_neg→inverter:dc_negative': { vwy: 735 },
 
     // ── LOAD DISTRIBUTION (rightward flow) ──
     'distribution:fuse_out_4→battery_protect:in_positive': 'direct',
     'battery_protect:out_positive→fuse_block:pos_in': 'direct',
-    'distribution:busbar_neg→fuse_block:neg_in': { hwy: 475 },
-
-    // ── EARTH/CHASSIS BOND ──
-    'earth_bar:chassis→distribution:busbar_neg': { vwy: 395 },
+    'distribution:busbar_neg→fuse_block:neg_in': { hwy: 480 },
   };
 
   const drawRuleWire = ({
@@ -1054,6 +1061,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     hint = 'auto',
     dashed = false,
     overrideGauge,
+    srcStubOverride,
+    dstStubOverride,
   }: {
     fromId: string;
     fromPort: string;
@@ -1063,6 +1072,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     hint?: RouteHint;
     dashed?: boolean;
     overrideGauge?: WireGauge;
+    srcStubOverride?: number;
+    dstStubOverride?: number;
   }) => {
     const src = placedPorts[fromId]?.[fromPort];
     const dst = placedPorts[toId]?.[toPort];
@@ -1074,8 +1085,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     const dstRule = getPortRule(dstType, toPort);
     const srcExit = srcRule?.exit ?? 'right';
     const dstExit = dstRule?.exit ?? 'left';
-    const srcStubLen = srcRule?.stubLength ?? 12;
-    const dstStubLen = dstRule?.stubLength ?? 12;
+    const srcStubLen = srcStubOverride ?? srcRule?.stubLength ?? 12;
+    const dstStubLen = dstStubOverride ?? dstRule?.stubLength ?? 12;
     const srcVec = dirVec(srcExit);
     const dstVec = dirVec(dstExit);
 
@@ -1130,6 +1141,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     netClass: 'dc_hi',
     hint: 'top',
     overrideGauge: mG >= 70 ? '70' : mG >= 50 ? '50' : mG >= 35 ? '35' : mG >= 25 ? '25' : mG >= 16 ? '16' : '10',
+    srcStubOverride: 0,
   });
 
   // Battery NEG → Shunt → Distribution
@@ -1153,6 +1165,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     netClass: 'dc_hi',
     hint: 'bottom',
     overrideGauge: mG >= 70 ? '70' : mG >= 50 ? '50' : mG >= 35 ? '35' : mG >= 25 ? '25' : mG >= 16 ? '16' : '10',
+    srcStubOverride: 0,
   });
 
   // AUX sense wire
@@ -1177,6 +1190,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_hi',
       hint: 'bottom',
       overrideGauge: heavyInvGauge,
+      dstStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'distribution',
@@ -1186,19 +1200,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_hi',
       hint: 'bottom',
       overrideGauge: heavyInvGauge,
+      dstStubOverride: 0,
     });
-    svg += drawRuleWire({
-      fromId: 'inverter',
-      fromPort: 'earth_terminal',
-      toId: 'earth_bar',
-      toPort: 'in_1',
-      netClass: 'earth',
-      hint: 'bottom',
-      dashed: true,
-      overrideGauge: '16',
-    });
-    const invGnd = placedPorts.inverter?.earth_terminal;
-    if (invGnd) svg += polarityMarker(invGnd.x + 10, invGnd.y + STUB, 'E');
   }
 
   // Distribution → MPPT (MPPT bottom output → down to Lynx top fuse slot)
@@ -1308,6 +1311,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_hi',
       hint: 'bottom',
       overrideGauge: bpGauge,
+      dstStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'battery_protect',
@@ -1327,43 +1331,6 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       hint: 'bottom',
       overrideGauge: bpGauge,
     });
-  }
-
-  // Chassis bond — route along LEFT edge to avoid crossing components
-  svg += drawRuleWire({
-    fromId: 'earth_bar',
-    fromPort: 'chassis',
-    toId: 'distribution',
-    toPort: hasLynx ? 'busbar_neg' : 'neg_in',
-    netClass: 'earth',
-    hint: 'bottom',
-    dashed: true,
-    overrideGauge: '35',
-  });
-  const earthChassis = placedPorts.earth_bar?.chassis;
-  if (earthChassis) svg += polarityMarker(earthChassis.x + 10, earthChassis.y - STUB, 'E');
-
-  // LPG earthing
-  if (hasLPG) {
-    placedPorts.lpg_node = { earth: { x: groundX + 101, y: groundY + 5 } };
-    placedComponentTypes.lpg_node = 'shore_inlet';
-    placedComponentSku.lpg_node = undefined;
-    svg += `<g transform="translate(${groundX + 80},${groundY - 5})">
-      <rect x="0" y="0" width="42" height="20" rx="3" fill="#FFF3E0" stroke="#E67E22"/>
-      <text x="21" y="14" text-anchor="middle" font-size="6" fill="#E67E22" font-weight="700">LPG</text>
-    </g>`;
-    placedPorts.earth_bar.lpg_bond = { x: earthBarX + 12 + (earthCount - 1) * 24, y: earthBarYClamped + 8 };
-    svg += drawRuleWire({
-      fromId: 'lpg_node',
-      fromPort: 'earth',
-      toId: 'earth_bar',
-      toPort: 'lpg_bond',
-      netClass: 'earth',
-      hint: 'bottom',
-      dashed: true,
-      overrideGauge: '4',
-    });
-    svg += polarityMarker(groundX + 90, groundY, 'E');
   }
 
   // ═══ AC WIRING (shore power) — standardized AC ports ═══
@@ -1400,6 +1367,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'ac_in',
       hint: 'right',
       overrideGauge: '2.5',
+      dstStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'inverter',
@@ -1409,6 +1377,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'ac_out',
       hint: 'right',
       overrideGauge: '2.5',
+      srcStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'consumer_unit_out',
@@ -1421,17 +1390,60 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     });
     svg += `<!-- AC_LOADS_WIRE -->`;
 
-    svg += drawRuleWire({
-      fromId: 'shore_inlet',
-      fromPort: 'earth',
-      toId: 'earth_bar',
-      toPort: 'in_2',
-      netClass: 'earth',
-      hint: 'bottom',
-      dashed: true,
-      overrideGauge: '4',
-    });
   }
+
+  // ═══ TERMINAL LUGS ═══
+  const lugScale = 0.7;
+
+  const batPos = placedPorts.battery_1?.positive_terminal;
+  if (batPos) svg += drawLug(batPos.x, batPos.y, `${mG}mm²`, 'up', 8, lugScale);
+
+  const batNegLug = placedPorts[`battery_${Math.min(batQty, 2)}`]?.negative_terminal;
+  if (batNegLug) svg += drawLug(batNegLug.x, batNegLug.y, `${mG}mm²`, 'up', 8, lugScale);
+
+  const midiIn = placedPorts.main_midi_fuse?.in_positive;
+  const midiOut = placedPorts.main_midi_fuse?.out_positive;
+  if (midiIn) svg += drawLug(midiIn.x, midiIn.y, `${mG}mm²`, 'up', 8, lugScale);
+  if (midiOut) svg += drawLug(midiOut.x, midiOut.y, `${mG}mm²`, 'down', 8, lugScale);
+
+  const isoIn = placedPorts.battery_isolator?.in_positive;
+  const isoOut = placedPorts.battery_isolator?.out_positive;
+  if (isoIn) svg += drawLug(isoIn.x, isoIn.y, `${mG}mm²`, 'up', 8, lugScale);
+  if (isoOut) svg += drawLug(isoOut.x, isoOut.y, `${mG}mm²`, 'down', 8, lugScale);
+
+  const lynxIn = placedPorts.distribution?.busbar_in ?? placedPorts.distribution?.pos_in;
+  if (lynxIn) svg += drawLug(lynxIn.x, lynxIn.y, `${mG}mm²`, 'left', 8, lugScale);
+
+  const shuntIn = placedPorts.smart_shunt?.batt_neg_in;
+  const shuntOut = placedPorts.smart_shunt?.system_neg_out;
+  if (shuntIn) svg += drawLug(shuntIn.x, shuntIn.y, `${mG}mm²`, 'left', 8, lugScale);
+  if (shuntOut) svg += drawLug(shuntOut.x, shuntOut.y, `${mG}mm²`, 'right', 8, lugScale);
+
+  if (hasInv) {
+    const invDcPos = placedPorts.inverter?.dc_positive;
+    const invDcNeg = placedPorts.inverter?.dc_negative;
+    if (invDcPos) svg += drawLug(invDcPos.x, invDcPos.y, `${iG}mm²`, 'down', 8, lugScale);
+    if (invDcNeg) svg += drawLug(invDcNeg.x, invDcNeg.y, `${iG}mm²`, 'down', 8, lugScale);
+  }
+
+  if (hasMPPT) {
+    const mpptBatPos = placedPorts.mppt?.bat_positive;
+    const mpptBatNeg = placedPorts.mppt?.bat_negative;
+    if (mpptBatPos) svg += drawLug(mpptBatPos.x, mpptBatPos.y, `${mpG}mm²`, 'down', 6, lugScale);
+    if (mpptBatNeg) svg += drawLug(mpptBatNeg.x, mpptBatNeg.y, `${mpG}mm²`, 'down', 6, lugScale);
+  }
+
+  if (bpC) {
+    const bpIn = placedPorts.battery_protect?.in_positive;
+    const bpOut = placedPorts.battery_protect?.out_positive;
+    if (bpIn) svg += drawLug(bpIn.x, bpIn.y, `${bG}mm²`, 'up', 6, lugScale);
+    if (bpOut) svg += drawLug(bpOut.x, bpOut.y, `${bG}mm²`, 'up', 6, lugScale);
+  }
+
+  const fbPos = placedPorts.fuse_block?.pos_in;
+  const fbNeg = placedPorts.fuse_block?.neg_in;
+  if (fbPos) svg += drawLug(fbPos.x, fbPos.y, `${bG}mm²`, 'up', 6, lugScale);
+  if (fbNeg) svg += drawLug(fbNeg.x, fbNeg.y, `${bG}mm²`, 'down', 6, lugScale);
 
   svg += `</svg>`;
   
@@ -1520,9 +1532,9 @@ export function validateSchematicSVG(svgString: string): SchematicCheck {
     failures.push('Shore power present but AC loads wire missing');
   }
 
-  // Check 3: Earth bar must be present.
-  if (!svgString.includes('EARTH BAR') && !svgString.includes('earth-bar')) {
-    failures.push('Earth bar not found in schematic');
+  // Check 3: Chassis ground symbols must be present.
+  if (!svgString.includes('CHASSIS') && !svgString.includes('chassis')) {
+    failures.push('Chassis ground symbols not found in schematic');
   }
 
   return { pass: failures.length === 0, failures };
