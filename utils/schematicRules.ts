@@ -280,33 +280,33 @@ export const COMPONENT_RULES: Record<string, ComponentRule> = {
 
   orion: {
     displayName: 'DC-DC Charger',
-    defaultW: 100,
-    defaultH: 62,
+    defaultW: 80,
+    defaultH: 120,
     keepOutPadding: 18,
     ports: {
       // Input from starter battery on left
       in_positive: {
-        exit: 'left',
-        stubLength: 14,
+        exit: 'down',
+        stubLength: 10,
         colour: 'dc_positive',
         defaultGauge: '6',
       },
       in_negative: {
-        exit: 'left',
-        stubLength: 14,
+        exit: 'down',
+        stubLength: 10,
         colour: 'dc_negative',
         defaultGauge: '6',
       },
       // Output to leisure battery on right
       out_positive: {
-        exit: 'right',
-        stubLength: 14,
+        exit: 'down',
+        stubLength: 10,
         colour: 'dc_positive',
         defaultGauge: '6',
       },
       out_negative: {
-        exit: 'right',
-        stubLength: 14,
+        exit: 'down',
+        stubLength: 10,
         colour: 'dc_negative',
         defaultGauge: '6',
       },

@@ -628,10 +628,10 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
   const MPPT_H = scaleDim(100, 52);
   const PVDISC_W = scaleDim(56, 30);
   const PVDISC_H = scaleDim(50, 28);
-  const DCDC_W = scaleDim(120, 56);
-  const DCDC_H = scaleDim(65, 34);
-  const STARTER_W = scaleDim(80, 40);
-  const STARTER_H = scaleDim(48, 26);
+  const DCDC_W = scaleDim(80, 50);
+  const DCDC_H = scaleDim(120, 70);
+  const STARTER_W = scaleDim(90, 46);
+  const STARTER_H = scaleDim(55, 30);
   const BP_W = scaleDim(80, 40);
   const BP_H = scaleDim(42, 22);
   const FB_W = scaleDim(110, 56);
@@ -677,8 +677,8 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     solar_panel_3: { cx: 190, cy: 210 },
     pv_disconnect: { cx: 140, cy: 300 },
     mppt: { cx: 140, cy: 410 },
-    starter_battery: { cx: 80, cy: 700 },
-    dcdc: { cx: 200, cy: 700 },
+    starter_battery: { cx: 120, cy: 790 },
+    dcdc: { cx: 150, cy: 650 },
 
     // ── Management column (centre, x: 290–860) ──
     consumer_unit_in: { cx: 400, cy: 115 },
@@ -967,7 +967,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     svg += `<text x="${POS.mppt.cx}" y="${POS.solar_panel_1.cy - DIM.solar_panel.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#388E3C" font-weight="600">SOLAR</text>`;
   }
   if (hasDC) {
-    svg += `<text x="${(POS.starter_battery.cx + POS.dcdc.cx) / 2}" y="${POS.dcdc.cy - DIM.orion.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#388E3C" font-weight="600">ALTERNATOR CHARGING</text>`;
+    svg += `<text x="${POS.dcdc.cx}" y="${POS.dcdc.cy - Math.floor(DCDC_H / 2) - 14}" text-anchor="middle" font-size="8" fill="#5A7A3A" font-weight="800" letter-spacing="2">ALTERNATOR CHARGING</text>`;
   }
   svg += `<text x="${POS.distribution.cx}" y="${POS.distribution.cy - DIM.lynx.h / 2 - 12}" text-anchor="middle" font-size="6" fill="#F57F17" font-weight="600">LYNX DISTRIBUTION</text>`;
   if (hasShore) {
@@ -1024,10 +1024,10 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     'distribution:busbar_neg→mppt:bat_negative': { hwy: 500 },
 
     // ── DC-DC PATH (generation column → management via x≈330-340 corridor) ──
-    'starter_battery:positive_terminal→dcdc:in_positive': 'direct',
-    'starter_battery:negative_terminal→dcdc:in_negative': 'direct',
-    'dcdc:out_positive→distribution:fuse_out_3': { vwy: 340 },
-    'dcdc:out_negative→distribution:busbar_neg': { vwy: 330 },
+    'starter_battery:positive_terminal→dcdc:in_positive': { pts: [[120, 730]] },
+    'starter_battery:negative_terminal→dcdc:in_negative': { pts: [[120, 740]] },
+    'dcdc:out_positive→distribution:fuse_out_3': { pts: [[150, 720], [340, 720]] },
+    'dcdc:out_negative→distribution:busbar_neg': { pts: [[150, 730], [330, 730]] },
 
     // ── BATTERY POSITIVE CHAIN (management column, left sub-column) ──
     'battery_1:positive_terminal→main_midi_fuse:in_positive': { pts: [[530, 500], [440, 500]] },
@@ -1270,6 +1270,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_lo',
       hint: 'top',
       overrideGauge: dcdcGaugeOut,
+      srcStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'dcdc',
@@ -1279,6 +1280,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_lo',
       hint: 'top',
       overrideGauge: dcdcGaugeOut,
+      srcStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'starter_battery',
@@ -1288,6 +1290,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_lo',
       hint: 'top',
       overrideGauge: dcdcGaugeIn,
+      dstStubOverride: 0,
     });
     svg += drawRuleWire({
       fromId: 'starter_battery',
@@ -1297,6 +1300,7 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
       netClass: 'dc_lo',
       hint: 'top',
       overrideGauge: dcdcGaugeIn,
+      dstStubOverride: 0,
     });
   }
 
