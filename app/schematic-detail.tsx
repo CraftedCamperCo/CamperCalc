@@ -48,7 +48,7 @@ export default function SchematicDetailScreen() {
 
   const hasShore = params.hasShore === 'true';
   const cableRun = ((params.cableRun as string) ?? 'medium') as CableRunLength;
-  const useLynx = params.useLynx === 'true';
+  const useLynx = true;
 
   const [exporting, setExporting] = useState(false);
   const [imageMap, setImageMap] = useState<Record<string, string>>({});

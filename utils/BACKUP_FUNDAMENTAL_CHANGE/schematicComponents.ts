@@ -318,11 +318,10 @@ export function drawBattery(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 65 ? 0.85 : 1));
 
-  // Schematic layout: + terminal on TOP, − terminal on BOTTOM
-  const posX = cx + w * 0.24;   // matches overridePort offset
-  const negX = cx - w * 0.15;   // matches overridePort offset
-  const posTermY = y;            // top edge
-  const negTermY = y + h;        // bottom edge
+  // Fogstar Drift terminal layout — + is offset right, − offset left
+  const posX = cx + w * 0.24;
+  const negX = cx - w * 0.26;
+  const termY = y;
   const stubH = 8;
   const stubW = 11;
   const bootR = 7.5;
@@ -335,42 +334,51 @@ export function drawBattery(
   <!-- Main body — Fogstar dark navy -->
   ${rr(x, y, w, h, 3, '#152238', '#0A1520', 1.5)}
 
+  <!-- Top grip ridge (physical feature of the Fogstar Drift) -->
+  ${rr(x + w * 0.1, y + stubH + 2, w * 0.8, 5, 1, '#0A1520', undefined, undefined, 0.7)}
+
   <!-- Fogstar blue accent band -->
-  ${rr(x, y + 4, w, 16, 0, '#1B6FD8')}
-  ${txt(cx, y + 12, 'FOGSTAR DRIFT', f(6.5), '#FFFFFF', 'bold')}
+  ${rr(x, y + stubH + 9, w, 16, 0, '#1B6FD8')}
+  ${txt(cx, y + stubH + 17, 'FOGSTAR DRIFT', f(6.5), '#FFFFFF', 'bold')}
 
   <!-- LiFePO4 chemistry label -->
-  ${txt(cx, y + 24, 'LiFePO\u2084 Leisure Battery', f(5), '#7EB5E6')}
+  ${txt(cx, y + stubH + 32, 'LiFePO\u2084 Leisure Battery', f(5), '#7EB5E6')}
 
   <!-- Capacity badge — large, central -->
-  ${rr(cx - 22, cy - 12, 44, 20, 3, '#0A1520')}
-  ${txt(cx, cy - 2, `${capacityAh}Ah`, f(12), '#1B6FD8', 'bold')}
+  ${rr(cx - 22, y + stubH + 40, 44, 20, 3, '#0A1520')}
+  ${txt(cx, y + stubH + 50, `${capacityAh}Ah`, f(12), '#1B6FD8', 'bold')}
 
   <!-- Wh spec line -->
-  ${txt(cx, cy + 14, '12.8V  ' + wattHours + 'Wh', f(5), '#4A7FAA')}
+  ${txt(cx, y + h - 28, '12.8V  ' + wattHours + 'Wh', f(5), '#4A7FAA')}
 
   <!-- BMS PROTECTED footer bar -->
-  ${rr(x + 4, y + h - 16, w - 8, 12, 2, '#0A1520')}
-  ${txt(cx, y + h - 10, 'SMART BMS', f(5), '#1B6FD8', 'bold')}
+  ${rr(x + 4, y + h - 18, w - 8, 14, 2, '#0A1520')}
+  ${txt(cx, y + h - 11, 'SMART BMS PROTECTED', f(5), '#1B6FD8', 'bold')}
 
-  <!-- Positive terminal stub at TOP (brass) -->
-  ${rr(posX - stubW / 2, posTermY - stubH, stubW, stubH + 3, 2, '#C8A840', '#8B6914', 1)}
-  <ellipse cx="${posX}" cy="${posTermY - stubH}" rx="${bootR}" ry="${bootR * 0.56}" fill="#CC2200" stroke="#991500" stroke-width="0.9"/>
-  <ellipse cx="${posX}" cy="${posTermY - stubH}" rx="${bootR * 0.52}" ry="${bootR * 0.32}" fill="#E03020" opacity="0.55"/>
-  ${txt(posX, posTermY - stubH + 1, '+', f(7.5), '#FFFFFF', 'bold')}
+  <!-- Corner locating studs (physical feature) -->
+  <circle cx="${x + 6}" cy="${y + h - 6}" r="2.5" fill="#0A1520" stroke="#222" stroke-width="0.5"/>
+  <circle cx="${x + w - 6}" cy="${y + h - 6}" r="2.5" fill="#0A1520" stroke="#222" stroke-width="0.5"/>
 
-  <!-- Negative terminal stub at BOTTOM (dark) — FIX #4: tighter to body -->
-  ${rr(negX - stubW / 2, negTermY - 2, stubW, stubH, 2, '#3A3A3A', '#1A1A1A', 1)}
-  <ellipse cx="${negX}" cy="${negTermY + stubH - 2}" rx="${bootR}" ry="${bootR * 0.56}" fill="#1A1A1A" stroke="#111" stroke-width="0.9"/>
-  <ellipse cx="${negX}" cy="${negTermY + stubH - 2}" rx="${bootR * 0.52}" ry="${bootR * 0.32}" fill="#333" opacity="0.6"/>
-  ${txt(negX, negTermY + stubH - 1, '\u2212', f(7.5), '#AAAAAA', 'bold')}
+  <!-- Positive terminal stub (brass) -->
+  ${rr(posX - stubW / 2, termY - stubH, stubW, stubH + 3, 2, '#C8A840', '#8B6914', 1)}
+  <!-- Positive boot — red insulating dome cover -->
+  <ellipse cx="${posX}" cy="${termY - stubH}" rx="${bootR}" ry="${bootR * 0.56}" fill="#CC2200" stroke="#991500" stroke-width="0.9"/>
+  <ellipse cx="${posX}" cy="${termY - stubH}" rx="${bootR * 0.52}" ry="${bootR * 0.32}" fill="#E03020" opacity="0.55"/>
+  ${txt(posX, termY - stubH + 1, '+', f(7.5), '#FFFFFF', 'bold')}
+
+  <!-- Negative terminal stub (dark) -->
+  ${rr(negX - stubW / 2, termY - stubH, stubW, stubH + 3, 2, '#3A3A3A', '#1A1A1A', 1)}
+  <!-- Negative boot — black dome cover -->
+  <ellipse cx="${negX}" cy="${termY - stubH}" rx="${bootR}" ry="${bootR * 0.56}" fill="#1A1A1A" stroke="#111" stroke-width="0.9"/>
+  <ellipse cx="${negX}" cy="${termY - stubH}" rx="${bootR * 0.52}" ry="${bootR * 0.32}" fill="#333" opacity="0.6"/>
+  ${txt(negX, termY - stubH + 1, '\u2212', f(7.5), '#AAAAAA', 'bold')}
 </g>`;
 
   return {
     svg,
     ports: {
-      positive_terminal: { x: posX, y: posTermY },
-      negative_terminal: { x: negX, y: negTermY },
+      positive_terminal: { x: posX, y: termY - stubH },
+      negative_terminal: { x: negX, y: termY - stubH },
     },
   };
 }
@@ -386,36 +394,38 @@ export function drawStarterBattery(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 55 ? 0.8 : 1));
 
-  // Schematic layout: + on RIGHT edge, − on BOTTOM edge
+  const posX = cx - w * 0.22;
+  const negX = cx + w * 0.22;
+  const termY = y;
   const stubH = 6; const stubW = 9; const bootR = 5;
 
   const svg = `<g id="starter-batt-${cx}-${cy}">
   ${rr(x, y, w, h, 3, '#2A2A2A', '#111', 1.5)}
+  <!-- Handle -->
+  ${rr(cx - w * 0.25, y + 3, w * 0.5, 4, 1, '#1A1A1A')}
   <!-- Top label band -->
-  ${rr(x + 1, y + 4, w - 2, 10, 0, '#3A3A3A')}
-  ${txt(cx, y + 9, 'STARTER', f(5), '#CCCCCC', 'bold')}
-  ${txt(cx, y + 20, 'BATTERY', f(5), '#CCCCCC', 'bold')}
-  ${txt(cx, cy + 4, '12V Lead Acid', f(4), '#888')}
+  ${rr(x + 1, y + stubH + 6, w - 2, 10, 0, '#3A3A3A')}
+  ${txt(cx, y + stubH + 11, 'STARTER BATTERY', f(5), '#CCCCCC', 'bold')}
+  <!-- Sub-label -->
+  ${txt(cx, y + stubH + 22, '12V Lead Acid', f(4), '#888')}
   <!-- Type badge -->
-  ${rr(cx - 16, y + h - 16, 32, 12, 2, '#1A1A1A')}
-  ${txt(cx, y + h - 10, 'AGM/EFB', f(5), '#666', 'bold')}
-
-  <!-- + terminal on RIGHT edge -->
-  ${rr(x + w - 3, cy - stubW / 2, stubH + 3, stubW, 1.5, '#C8A840', '#8B6914', 1)}
-  <ellipse cx="${x + w + stubH}" cy="${cy}" rx="${bootR * 0.5}" ry="${bootR}" fill="#CC2200" stroke="#991500" stroke-width="0.8"/>
-  ${txt(x + w + stubH, cy + 1, '+', f(6), '#FFF', 'bold')}
-
-  <!-- − terminal on BOTTOM edge -->
-  ${rr(cx - stubW / 2, y + h - 3, stubW, stubH + 3, 1.5, '#444', '#222', 1)}
-  <ellipse cx="${cx}" cy="${y + h + stubH}" rx="${bootR}" ry="${bootR * 0.5}" fill="#222" stroke="#111" stroke-width="0.8"/>
-  ${txt(cx, y + h + stubH + 1, '\u2212', f(6), '#BBB', 'bold')}
+  ${rr(cx - 16, y + h - 18, 32, 12, 2, '#1A1A1A')}
+  ${txt(cx, y + h - 12, 'AGM/EFB', f(5), '#666', 'bold')}
+  <!-- + terminal -->
+  ${rr(posX - stubW / 2, termY - stubH, stubW, stubH + 2, 1.5, '#C8A840', '#8B6914', 1)}
+  <ellipse cx="${posX}" cy="${termY - stubH}" rx="${bootR}" ry="${bootR * 0.5}" fill="#CC2200" stroke="#991500" stroke-width="0.8"/>
+  ${txt(posX, termY - stubH + 1, '+', f(6), '#FFF', 'bold')}
+  <!-- − terminal -->
+  ${rr(negX - stubW / 2, termY - stubH, stubW, stubH + 2, 1.5, '#444', '#222', 1)}
+  <ellipse cx="${negX}" cy="${termY - stubH}" rx="${bootR}" ry="${bootR * 0.5}" fill="#222" stroke="#111" stroke-width="0.8"/>
+  ${txt(negX, termY - stubH + 1, '\u2212', f(6), '#BBB', 'bold')}
 </g>`;
 
   return {
     svg,
     ports: {
-      positive_terminal: { x: x + w, y: cy },      // right edge
-      negative_terminal: { x: cx,    y: y + h },    // bottom edge
+      positive_terminal: { x: posX, y: termY - stubH },
+      negative_terminal: { x: negX, y: termY - stubH },
     },
   };
 }
@@ -446,55 +456,81 @@ export function drawSmartShunt(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 56 ? 0.82 : 1));
 
-  // Schematic layout: batt_neg LEFT, system_neg TOP, aux RIGHT
-  // FIX #1/#2: smaller, proportional brass terminal blocks
-  const blockW = 10;
-  const blockH = h * 0.45;
-  const topBlockW = w * 0.28;  // narrower top block
+  // Large brass terminal blocks — match real device proportions
+  const blockW = Math.max(18, w * 0.28);
+  const blockH = h * 0.72;
+  const blockY = cy - blockH / 2;
+
+  // Shunt copper bar (the actual shunt element between the two blocks)
+  const shuntBarH = h * 0.18;
 
   const svg = `<g id="shunt-${cx}-${cy}">
-  <!-- Drop shadow -->
-  <rect x="${x + 2}" y="${y + 2}" width="${w}" height="${h}" rx="3" fill="#000" opacity="0.15"/>
+  <!-- Left brass terminal block -->
+  ${rr(x - blockW, blockY, blockW, blockH, 2, '#B8860B', '#7A5600', 1.5)}
+  <!-- Brass texture detail -->
+  ${rr(x - blockW + 2, blockY + 3, blockW - 4, blockH - 6, 1, '#C8A020', undefined, undefined, 0.3)}
+  <!-- M8 bolt on left block -->
+  ${hexNut(x - blockW / 2, cy - blockH * 0.2, 5.5)}
+  <!-- Clamping bolt below -->
+  ${hexNut(x - blockW / 2, cy + blockH * 0.2, 4.5, '#777', '#444')}
+  <!-- "TO BATTERY" rotated label on block -->
+  <text transform="rotate(-90,${x - blockW / 2},${cy - blockH * 0.08})"
+    x="${x - blockW / 2}" y="${cy - blockH * 0.08}"
+    text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${f(4.5)}" fill="#1A1200" font-weight="bold">TO BATTERY</text>
+  <text transform="rotate(-90,${x - blockW / 2},${cy + blockH * 0.12})"
+    x="${x - blockW / 2}" y="${cy + blockH * 0.12}"
+    text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${f(4.5)}" fill="#1A1200" font-weight="bold">MINUS</text>
 
-  <!-- Main body — Victron navy -->
+  <!-- Shunt copper resistor bar (visible between blocks) -->
+  ${rr(x - 3, cy - shuntBarH / 2, w + 6, shuntBarH, 1, '#B8860B', '#8B6914', 0.8)}
+  <line x1="${x - 3}" y1="${cy}" x2="${x + w + 3}" y2="${cy}"
+    stroke="#D4A820" stroke-width="1" opacity="0.5"/>
+
+  <!-- Main body -->
   ${rr(x, y, w, h, 3, '#1C3F6E', '#0D2647', 1.2)}
 
   <!-- Orange header stripe -->
-  ${rr(x, y, w, 13, 3, '#E8750A')}
-  ${txt(cx, y + 5, 'victron energy', f(4.5), '#FFF', 'bold')}
-  ${txt(cx, y + 10.5, 'SmartShunt', f(3.5), '#FFE0B2')}
+  ${rr(x, y, w, 16, 3, '#E8750A')}
+  ${txt(cx, y + 6, 'victron energy', f(5.5), '#FFF', 'bold')}
+  ${txt(cx, y + 12.5, 'SmartShunt', f(4.5), '#FFE0B2')}
 
   <!-- Model / spec band -->
-  ${rr(x + 2, y + 15, w - 4, 8, 2, '#142D50')}
-  ${txt(cx, y + 19, '500A/50mV', f(4.5), '#7FB8E0', 'bold')}
+  ${rr(x + 3, y + 19, w - 6, 11, 2, '#142D50')}
+  ${txt(cx, y + 24.5, '500A / 50mV', f(6), '#7FB8E0', 'bold')}
 
-  <!-- Shunt copper bar (horizontal centre) -->
-  ${rr(x + 3, cy - 1.5, w - 6, 3, 1, '#B8860B', '#8B6914', 0.8)}
+  <!-- Bluetooth symbol detail -->
+  ${txt(cx - w * 0.28, y + h - 10, '\u2318', f(8), '#3B9BE8')}
 
-  <!-- Status LED -->
-  ${led(x + w - 6, y + 6, '#27AE60')}
+  <!-- Status LED (green = connected) -->
+  ${led(x + w - 8, y + 9, '#27AE60')}
 
-  <!-- LEFT: batt_neg_in terminal block (compact) -->
-  ${rr(x - blockW, cy - blockH / 2, blockW, blockH, 2, '#B8860B', '#7A5600', 1.2)}
-  ${hexNut(x - blockW / 2, cy, 3.5)}
-  ${txt(x - blockW / 2 - 1, cy - blockH * 0.32, 'B\u2212', f(3.5), '#1A1200', 'bold')}
+  <!-- Aux sense terminal (small, top centre) -->
+  ${rr(cx - 8, y - 6, 16, 6, 1.5, '#2A2A2A', '#111', 0.8)}
+  ${txt(cx, y - 3, 'AUX', f(4), '#AAA')}
 
-  <!-- TOP: system_neg_out terminal block (compact, narrower) -->
-  ${rr(cx - topBlockW / 2, y - blockW, topBlockW, blockW, 2, '#B8860B', '#7A5600', 1.2)}
-  ${hexNut(cx, y - blockW / 2, 3.5)}
-  ${txt(cx, y - blockW - 4, 'SYS\u2212', f(4), '#7A5600', 'bold')}
-
-  <!-- RIGHT: aux sense terminal -->
-  ${rr(x + w, cy - 4, 10, 8, 1.5, '#2A2A2A', '#111', 0.8)}
-  ${txt(x + w + 5, cy - 7, 'AUX', f(4), '#AAA', 'bold')}
+  <!-- Right brass terminal block -->
+  ${rr(x + w, blockY, blockW, blockH, 2, '#B8860B', '#7A5600', 1.5)}
+  ${rr(x + w + 2, blockY + 3, blockW - 4, blockH - 6, 1, '#C8A020', undefined, undefined, 0.3)}
+  ${hexNut(x + w + blockW / 2, cy - blockH * 0.2, 5.5)}
+  ${hexNut(x + w + blockW / 2, cy + blockH * 0.2, 4.5, '#777', '#444')}
+  <text transform="rotate(-90,${x + w + blockW / 2},${cy - blockH * 0.08})"
+    x="${x + w + blockW / 2}" y="${cy - blockH * 0.08}"
+    text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${f(4.5)}" fill="#1A1200" font-weight="bold">TO SYSTEM</text>
+  <text transform="rotate(-90,${x + w + blockW / 2},${cy + blockH * 0.12})"
+    x="${x + w + blockW / 2}" y="${cy + blockH * 0.12}"
+    text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${f(4.5)}" fill="#1A1200" font-weight="bold">MINUS</text>
 </g>`;
 
   return {
     svg,
     ports: {
-      batt_neg_in:    { x: x,          y: cy },        // left edge
-      system_neg_out: { x: cx,          y: y },         // top edge
-      aux_sense:      { x: x + w,       y: cy },        // right edge
+      batt_neg_in:    { x: x - blockW,          y: cy },
+      system_neg_out: { x: x + w + blockW,       y: cy },
+      aux_sense:      { x: cx,                   y: y - 6 },
     },
   };
 }
@@ -524,25 +560,60 @@ export function drawLynxDistributor(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 160 ? 0.75 : 1));
 
-  // Schematic layout: ports distributed across all 4 sides
-  // BOTTOM: busbar_in (left of centre), busbar_neg (right of centre), earth (centre)
-  // LEFT: fuse_out_1 (upper), neg_out_1 (lower)
-  // TOP: fuse_out_2 (left of centre), neg_out_2 (right of centre)
-  // RIGHT: fuse_out_3 (top), neg_out_3 (upper-mid), fuse_out_4 (lower-mid), neg_out_4 (bottom)
-
-  const gradId = `lynx-${Math.round(cx)}-${Math.round(cy)}`;
-  const termR = 4;
-
-  // Internal busbar representation
-  const busbarY = cy - h * 0.08;
-  const busbarH = Math.max(8, h * 0.06);
-  const negBarY = cy + h * 0.14;
+  // Core layout zones
+  const metalTop = y + h * 0.06;
+  const metalH = h * 0.72;
+  const fuseTop = metalTop + h * 0.02;
+  const fuseH = h * 0.30;
+  const busbarY = fuseTop + fuseH + 2;
+  const busbarH = Math.max(8, h * 0.065);
+  const negBarY = busbarY + busbarH + h * 0.18;
   const negBarH = Math.max(6, h * 0.05);
 
-  // FIX #6: 4 fuse positions spaced out with proper sizing
-  const fuseW = w * 0.16;
-  const fuseH = h * 0.22;
-  const fuseGap = (w - 40 - fuseW * 4) / 3;
+  const fuseAreaX = x + w * 0.10;
+  const fuseAreaW = w * 0.84;
+  const fuseSpacing = fuseAreaW / 4;
+  const fuseW = Math.min(fuseSpacing - 6, w * 0.14);
+  const fuseRatings = ['60A', '60A', '60A', '175A'];
+  const outLugH = Math.max(9, h * 0.11);
+  const negLugH = Math.max(8, h * 0.10);
+  const leftStubX = x - w * 0.07;
+  const earthCy = y + h + 8;
+  const earthPadY = y + h - 20;
+
+  const gradId = `lynx-${Math.round(cx)}-${Math.round(cy)}`;
+
+  let fuseSVG = '';
+  let outLugSVG = '';
+  let negLugSVG = '';
+  let posBoltSVG = '';
+  let negBoltSVG = '';
+  for (let i = 0; i < 4; i++) {
+    const fx = fuseAreaX + i * fuseSpacing;
+    const midX = fx + fuseW / 2;
+    fuseSVG += `
+  ${rr(fx, fuseTop, fuseW, fuseH, 2, `url(#${gradId}-fuse)`, '#8A4F00', 0.8)}
+  ${rr(midX - fuseW * 0.23, fuseTop + fuseH * 0.24, fuseW * 0.46, fuseH * 0.34, 1.5, '#FFD060', '#CC9B2D', 0.6)}
+  ${hexNut(midX, fuseTop + 4, 4.2, '#999', '#666')}
+  ${hexNut(midX, fuseTop + fuseH - 4, 4.2, '#999', '#666')}
+  <text transform="rotate(-90,${midX},${fuseTop + fuseH * 0.62})"
+    x="${midX}" y="${fuseTop + fuseH * 0.62}"
+    text-anchor="middle" dominant-baseline="central"
+    font-family="Arial,sans-serif" font-size="${f(5.2)}" fill="#FFF" font-weight="700">${fuseRatings[i]}</text>`;
+
+    outLugSVG += `
+  ${rr(midX - 4.5, y - outLugH, 9, outLugH + 1.5, 1.2, 'url(#' + gradId + '-lug-pos)', '#A88020', 0.8)}
+  <circle cx="${midX}" cy="${y - outLugH + 2.8}" r="2.1" fill="#7A7A7A"/>
+  <circle cx="${midX}" cy="${y - outLugH + 2.8}" r="1.1" fill="#666"/>`;
+
+    negLugSVG += `
+  ${rr(midX - 4.2, y + h - 1, 8.4, negLugH + 1.5, 1.2, '#4A4A4A', '#333', 0.8)}
+  <circle cx="${midX}" cy="${y + h + negLugH - 1.8}" r="2.0" fill="#666"/>
+  <circle cx="${midX}" cy="${y + h + negLugH - 1.8}" r="1.0" fill="#444"/>`;
+
+    posBoltSVG += `${hexNut(midX, busbarY + busbarH / 2, 4.2, '#999', '#666')}`;
+    negBoltSVG += `${hexNut(midX, negBarY + negBarH / 2, 4.0, '#666', '#444')}`;
+  }
 
   const svg = `<g id="${gradId}">
   <defs>
@@ -551,103 +622,72 @@ export function drawLynxDistributor(
       <stop offset="52%" stop-color="#2E7AB8"/>
       <stop offset="100%" stop-color="#1B5A8C"/>
     </linearGradient>
+    <linearGradient id="${gradId}-metal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ABABAB"/>
+      <stop offset="55%" stop-color="#929292"/>
+      <stop offset="100%" stop-color="#7A7A7A"/>
+    </linearGradient>
+    <linearGradient id="${gradId}-posbar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#DDB545"/>
+      <stop offset="52%" stop-color="#C8A030"/>
+      <stop offset="100%" stop-color="#A07A1A"/>
+    </linearGradient>
+    <linearGradient id="${gradId}-lug-pos" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4A840"/>
+      <stop offset="100%" stop-color="#A88020"/>
+    </linearGradient>
+    <linearGradient id="${gradId}-fuse" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E89020"/>
+      <stop offset="100%" stop-color="#C06A00"/>
+    </linearGradient>
+    <linearGradient id="${gradId}-negbar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#555"/>
+      <stop offset="100%" stop-color="#3A3A3A"/>
+    </linearGradient>
   </defs>
 
-  <!-- Drop shadow -->
   <rect x="${x + 2.5}" y="${y + 2.5}" width="${w}" height="${h}" rx="5" fill="#000" opacity="0.16"/>
-  <!-- Main body -->
   ${rr(x, y, w, h, 5, `url(#${gradId}-body)`, '#14466A', 1.2)}
+  ${rr(x + w * 0.05, metalTop, w * 0.90, metalH, 3, `url(#${gradId}-metal)`, '#6A6A6A', 0.7)}
 
-  <!-- Internal metal plate -->
-  ${rr(x + 8, y + 8, w - 16, h - 30, 3, '#929292', '#6A6A6A', 0.7)}
+  ${rr(leftStubX, busbarY, w * 0.92, busbarH, 2, `url(#${gradId}-posbar)`, '#8F6A1A', 0.8)}
+  ${posBoltSVG}
+  ${fuseSVG}
+  ${outLugSVG}
 
-  <!-- Positive busbar (horizontal, centre) -->
-  ${rr(x + 14, busbarY, w - 28, busbarH, 2, '#C8A030', '#8F6A1A', 0.8)}
-  <!-- Negative busbar (horizontal, below) -->
-  ${rr(x + 14, negBarY, w - 28, negBarH, 2, '#4A4A4A', '#2A2A2A', 0.8)}
+  ${rr(leftStubX, negBarY, w * 0.92, negBarH, 2, `url(#${gradId}-negbar)`, '#2A2A2A', 0.8)}
+  ${negBoltSVG}
+  ${negLugSVG}
 
-  <!-- 4 fuse positions (evenly spaced row) -->
-  ${[0, 1, 2, 3].map(i => {
-    const fx = x + 20 + i * (fuseW + fuseGap);
-    return `${rr(fx, y + 14, fuseW, fuseH, 2, '#E89020', '#C06A00', 0.8)}
-    ${txt(fx + fuseW / 2, y + 14 + fuseH / 2, 'F' + (i + 1), f(6), '#FFF', 'bold')}`;
-  }).join('')}
+  ${rr(leftStubX - 2.5, busbarY - 3.2, 7.5, busbarH + 6.4, 1.3, `url(#${gradId}-lug-pos)`, '#A88020', 0.8)}
+  ${hexNut(leftStubX + 1.4, busbarY + busbarH / 2, 3.8, '#999', '#666')}
 
-  <!-- Labels -->
-  ${txt(cx, y + h - 14, 'LYNX DISTRIBUTOR', f(6), '#EAF4FF', 'bold')}
-  ${txt(cx, y + h - 6, 'victron energy', f(4.5), '#D7EAF8')}
+  ${rr(leftStubX - 2.5, negBarY - 3.0, 7.5, negBarH + 6.0, 1.3, '#4A4A4A', '#333', 0.8)}
+  ${hexNut(leftStubX + 1.4, negBarY + negBarH / 2, 3.6, '#666', '#444')}
 
-  <!-- FIX #7: All port labels at f(5) for readability -->
-  <!-- BOTTOM edge: busbar_in (pos, left of centre) -->
-  ${rr(cx - w * 0.15 - termR, y + h, termR * 2, 8, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(cx - w * 0.15, y + h + 4, 3, '#999', '#666')}
-  ${txt(cx - w * 0.15, y + h + 14, 'BUS+', f(5), '#C8A030', 'bold')}
+  ${rr(cx - 9, earthPadY, 18, 9, 2, '#2A7A2A', '#1C5A1C', 0.8)}
+  ${hexNut(cx, earthCy, 3.8, '#2A7A2A', '#1C5A1C')}
 
-  <!-- BOTTOM edge: busbar_neg (neg, right of centre) -->
-  ${rr(cx + w * 0.15 - termR, y + h, termR * 2, 8, 1.5, '#4A4A4A', '#2A2A2A', 0.8)}
-  ${hexNut(cx + w * 0.15, y + h + 4, 3, '#666', '#444')}
-  ${txt(cx + w * 0.15, y + h + 14, 'BUS\u2212', f(5), '#888', 'bold')}
-
-  <!-- LEFT edge: fuse_out_1 (upper) -->
-  ${rr(x - 8, cy - h * 0.2 - termR, 8, termR * 2, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(x - 4, cy - h * 0.2, 3, '#999', '#666')}
-  ${txt(x - 12, cy - h * 0.2, 'F1+', f(5), '#C8A030', 'bold', 'end')}
-
-  <!-- LEFT edge: neg_out_1 (lower) -->
-  ${rr(x - 8, cy + h * 0.2 - termR, 8, termR * 2, 1.5, '#4A4A4A', '#2A2A2A', 0.8)}
-  ${hexNut(x - 4, cy + h * 0.2, 3, '#666', '#444')}
-  ${txt(x - 12, cy + h * 0.2, 'N1\u2212', f(5), '#888', 'bold', 'end')}
-
-  <!-- TOP edge: fuse_out_2 (left of centre) -->
-  ${rr(cx - w * 0.15 - termR, y - 8, termR * 2, 8, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(cx - w * 0.15, y - 4, 3, '#999', '#666')}
-  ${txt(cx - w * 0.15, y - 14, 'F2+', f(5), '#C8A030', 'bold')}
-
-  <!-- TOP edge: neg_out_2 (right of centre) -->
-  ${rr(cx + w * 0.15 - termR, y - 8, termR * 2, 8, 1.5, '#4A4A4A', '#2A2A2A', 0.8)}
-  ${hexNut(cx + w * 0.15, y - 4, 3, '#666', '#444')}
-  ${txt(cx + w * 0.15, y - 14, 'N2\u2212', f(5), '#888', 'bold')}
-
-  <!-- RIGHT edge: fuse_out_3 (top) -->
-  ${rr(x + w, cy - h * 0.3 - termR, 8, termR * 2, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(x + w + 4, cy - h * 0.3, 3, '#999', '#666')}
-  ${txt(x + w + 14, cy - h * 0.3, 'F3+', f(5), '#C8A030', 'bold', 'start')}
-
-  <!-- RIGHT edge: neg_out_3 (upper-mid) -->
-  ${rr(x + w, cy - h * 0.1 - termR, 8, termR * 2, 1.5, '#4A4A4A', '#2A2A2A', 0.8)}
-  ${hexNut(x + w + 4, cy - h * 0.1, 3, '#666', '#444')}
-  ${txt(x + w + 14, cy - h * 0.1, 'N3\u2212', f(5), '#888', 'bold', 'start')}
-
-  <!-- RIGHT edge: fuse_out_4 (lower-mid) -->
-  ${rr(x + w, cy + h * 0.1 - termR, 8, termR * 2, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(x + w + 4, cy + h * 0.1, 3, '#999', '#666')}
-  ${txt(x + w + 14, cy + h * 0.1, 'F4+', f(5), '#C8A030', 'bold', 'start')}
-
-  <!-- RIGHT edge: neg_out_4 (bottom) -->
-  ${rr(x + w, cy + h * 0.3 - termR, 8, termR * 2, 1.5, '#4A4A4A', '#2A2A2A', 0.8)}
-  ${hexNut(x + w + 4, cy + h * 0.3, 3, '#666', '#444')}
-  ${txt(x + w + 14, cy + h * 0.3, 'N4\u2212', f(5), '#888', 'bold', 'start')}
-
-  <!-- BOTTOM centre: earth pad -->
-  ${rr(cx - 6, y + h - 2, 12, 6, 2, '#2A7A2A', '#1C5A1C', 0.8)}
+  ${txt(cx, y + h - 10, 'LYNX DISTRIBUTOR', f(6), '#EAF4FF', 'bold')}
+  ${txt(cx, y + h - 4, 'victron energy', f(4.5), '#D7EAF8')}
 </g>`;
 
-  return {
-    svg,
-    ports: {
-      busbar_in:  { x: cx - w * 0.15, y: y + h },     // bottom, left of centre
-      busbar_neg: { x: cx + w * 0.15, y: y + h },     // bottom, right of centre
-      fuse_out_1: { x: x,             y: cy - h * 0.2 }, // left, upper
-      neg_out_1:  { x: x,             y: cy + h * 0.2 }, // left, lower
-      fuse_out_2: { x: cx - w * 0.15, y: y },          // top, left of centre
-      neg_out_2:  { x: cx + w * 0.15, y: y },          // top, right of centre
-      fuse_out_3: { x: x + w,         y: cy - h * 0.3 }, // right, top
-      neg_out_3:  { x: x + w,         y: cy - h * 0.1 }, // right, upper-mid
-      fuse_out_4: { x: x + w,         y: cy + h * 0.1 }, // right, lower-mid
-      neg_out_4:  { x: x + w,         y: cy + h * 0.3 }, // right, bottom
-      earth:      { x: cx,            y: y + h },       // bottom centre
-    },
+  const ports: ComponentPorts = {
+    busbar_in: { x: leftStubX, y: busbarY + busbarH / 2 },
+    busbar_neg: { x: leftStubX, y: negBarY + negBarH / 2 },
+    earth: { x: cx, y: y + h + 8 },
   };
+
+  for (let i = 0; i < 4; i++) {
+    const fx = fuseAreaX + i * fuseSpacing + fuseW / 2;
+    ports[`fuse_out_${i + 1}`] = { x: fx, y: y - 6 };
+  }
+  for (let i = 0; i < 4; i++) {
+    const fx = fuseAreaX + i * fuseSpacing + fuseW / 2;
+    ports[`neg_out_${i + 1}`] = { x: fx, y: y + h + 6 };
+  }
+
+  return { svg, ports };
 }
 
 // ---------------------------------------------------------------------------
@@ -731,13 +771,56 @@ export function drawMultiPlus(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 72 ? 0.82 : 1));
 
-  // Schematic layout: AC_IN on TOP, AC_OUT on RIGHT, DC+/DC− on LEFT
-  const termW = 9; const termH = 7;
+  // Terminal block — bottom of device
+  // DC+ and DC− at left, PE in middle, AC OUT then AC IN at right
+  const termY = y + h;
+  const termH = 10;
+  // Distribute 5 terminals across the body width with some padding
+  const termPad = w * 0.06;
+  const termSpan = w - termPad * 2;
+  const termStep = termSpan / 4;
 
-  // Port positions matching overridePort offsets
-  const dcPosY  = cy - h * 0.15;   // left side, above centre
-  const dcNegY  = cy + h * 0.15;   // left side, below centre
-  const acOutY  = cy - h * 0.15;   // right side
+  const terminals: Array<{ name: string; label: string; fill: string; ratio: number }> = [
+    { name: 'dc_positive',    label: 'DC+', fill: '#C0392B', ratio: 0.00 },
+    { name: 'dc_negative',    label: 'DC\u2212', fill: '#2A2A2A', ratio: 0.25 },
+    { name: 'earth_terminal', label: 'PE',  fill: '#27AE60', ratio: 0.50 },
+    { name: 'ac_out',         label: 'L\u2192', fill: '#2980B9', ratio: 0.75 },
+    { name: 'ac_in',          label: 'L\u2190', fill: '#5B5BDB', ratio: 1.00 },
+  ];
+
+  const termSVG = terminals.map(({ label, fill, ratio }) => {
+    const tx = x + termPad + ratio * termSpan;
+    return `${rr(tx - 4.5, termY, 9, termH, 1.5, fill, '#111', 0.8)}
+${hexNut(tx, termY + 5, 3.2)}
+${txt(tx, termY + termH + 5, label, f(4.5), fill, 'bold')}`;
+  }).join('');
+
+  // Ventilation grilles — left 52% of body, below header
+  const ventX = x + 5;
+  const ventW = w * 0.50;
+  const vents = [...Array(7)].map((_, i) =>
+    `<rect x="${ventX}" y="${y + 42 + i * 9}" width="${ventW}" height="5" rx="1.5" fill="#0D1E3A" opacity="0.8"/>`
+  ).join('');
+
+  // LED panel — right section
+  const ledPanelX = x + w * 0.58;
+  const ledPanelW = w * 0.38;
+  const ledPanelY = y + 38;
+  const ledPanelH = h * 0.44;
+
+  const leds = [
+    { label: 'BULK',  colour: '#F0A500', dy: 0.15 },
+    { label: 'ABS',   colour: '#E87000', dy: 0.38 },
+    { label: 'FLOAT', colour: '#27AE60', dy: 0.61 },
+    { label: 'INV',   colour: '#3B9BE8', dy: 0.84 },
+  ];
+
+  const ledSVG = leds.map(({ label, colour, dy }) => {
+    const lx = ledPanelX + ledPanelW * 0.35;
+    const ly = ledPanelY + ledPanelH * dy;
+    return `<circle cx="${lx}" cy="${ly}" r="2.8" fill="${colour}" opacity="0.9"/>
+${txt(lx + 8, ly, label, f(4), '#7FB8E0', undefined, 'start')}`;
+  }).join('');
 
   const svg = `<g id="multiplus-${cx}-${cy}">
   <!-- Drop shadow -->
@@ -745,59 +828,42 @@ export function drawMultiPlus(
   <!-- Main body -->
   ${rr(x, y, w, h, 4, '#1C3F6E', '#0D2647', 1.5)}
 
-  <!-- ORANGE header stripe -->
-  ${rr(x, y, w, 18, 4, '#E8750A')}
-  ${txt(cx, y + 7, 'victron energy', f(6.5), '#FFFFFF', 'bold')}
-  ${txt(cx, y + 14.5, 'MultiPlus', f(4.5), '#FFE0B2')}
+  <!-- ORANGE header stripe — THE Victron identifier -->
+  ${rr(x, y, w, 22, 4, '#E8750A')}
+  ${txt(cx, y + 8.5, 'victron energy', f(7.5), '#FFFFFF', 'bold')}
+  ${txt(cx, y + 17, 'MultiPlus', f(5.5), '#FFE0B2')}
 
   <!-- Model band -->
-  ${rr(x + 3, y + 20, w - 6, 10, 2, '#142D50')}
-  ${txt(cx, y + 25, '12/3000/120', f(5), '#7FB8E0', 'bold')}
+  ${rr(x + 4, y + 25, w - 8, 12, 2, '#142D50')}
+  ${txt(cx, y + 31, 'MultiPlus  12/3000/120', f(5.5), '#7FB8E0', 'bold')}
 
-  <!-- Vent grilles (centre body) -->
-  ${[...Array(4)].map((_, i) => `<rect x="${x + 10}" y="${y + 34 + i * 8}" width="${w * 0.45}" height="4" rx="1.5" fill="#0D1E3A" opacity="0.8"/>`).join('')}
+  <!-- Vent grilles (left panel) -->
+  ${rr(x + 3, y + 40, w * 0.54, h * 0.48, 2, '#0F1E38', undefined, undefined, 0.7)}
+  ${vents}
 
-  <!-- LED panel -->
-  ${rr(x + w * 0.6, y + 34, w * 0.34, h * 0.35, 2, '#0A1525')}
-  <circle cx="${x + w * 0.68}" cy="${y + 40}" r="2" fill="#F0A500" opacity="0.9"/>
-  <circle cx="${x + w * 0.68}" cy="${y + 48}" r="2" fill="#27AE60" opacity="0.9"/>
-  <circle cx="${x + w * 0.68}" cy="${y + 56}" r="2" fill="#3B9BE8" opacity="0.9"/>
+  <!-- LED panel (right section) -->
+  ${rr(ledPanelX, ledPanelY, ledPanelW, ledPanelH, 2, '#0A1525')}
+  ${ledSVG}
 
-  <!-- ─── AC IN terminal (TOP edge, centre) ─── -->
-  ${rr(cx - termW / 2, y - termH - 2, termW, termH + 2, 1.5, '#5B5BDB', '#333', 0.9)}
-  ${hexNut(cx, y - termH / 2, 3)}
-  ${txt(cx, y - termH - 5, 'AC IN', f(5.5), '#5B5BDB', 'bold')}
+  <!-- Bottom DC terminal section label -->
+  ${rr(x + 4, y + h - 24, w * 0.44, 10, 1, '#0D1E3A')}
+  ${txt(x + 4 + w * 0.22, y + h - 19, 'DC TERMINALS', f(4), '#4A7FAA')}
 
-  <!-- FIX #8: Larger terminal labels for readability -->
-  <!-- ─── AC OUT terminal (RIGHT edge) ─── -->
-  ${rr(x + w, acOutY - termW / 2, termH + 2, termW, 1.5, '#2980B9', '#333', 0.9)}
-  ${hexNut(x + w + termH / 2, acOutY, 3)}
-  ${txt(x + w + termH + 5, acOutY, 'AC OUT', f(5.5), '#2980B9', 'bold', 'start')}
+  <!-- Bottom AC terminal section label -->
+  ${rr(x + w * 0.5, y + h - 24, w * 0.46, 10, 1, '#0D1E3A')}
+  ${txt(x + w * 0.73, y + h - 19, 'AC TERMINALS', f(4), '#4A7FAA')}
 
-  <!-- ─── DC+ terminal (LEFT edge, above centre) ─── -->
-  ${rr(x - termH - 2, dcPosY - termW / 2, termH + 2, termW, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(x - termH / 2, dcPosY, 3)}
-  ${txt(x - termH - 5, dcPosY, 'DC+', f(5.5), '#C0392B', 'bold', 'end')}
-
-  <!-- ─── DC− terminal (LEFT edge, below centre) ─── -->
-  ${rr(x - termH - 2, dcNegY - termW / 2, termH + 2, termW, 1.5, '#2A2A2A', '#111', 0.9)}
-  ${hexNut(x - termH / 2, dcNegY, 3)}
-  ${txt(x - termH - 5, dcNegY, 'DC\u2212', f(5.5), '#666', 'bold', 'end')}
-
-  <!-- Bottom label -->
-  ${txt(cx, y + h - 6, 'INVERTER / CHARGER', f(4), '#4A7FAA')}
+  <!-- Terminal housing -->
+  <rect x="${x + termPad - 6}" y="${termY - 1}" width="${termSpan + 12}" height="${termH + 2}" rx="1.5" fill="#0A0A0A" stroke="#333" stroke-width="0.8"/>
+  ${termSVG}
 </g>`;
 
-  return {
-    svg,
-    ports: {
-      ac_in:          { x: cx,    y: y },              // top edge
-      ac_out:         { x: x + w, y: acOutY },         // right edge
-      dc_positive:    { x: x,     y: dcPosY },         // left edge
-      dc_negative:    { x: x,     y: dcNegY },         // left edge
-      earth_terminal: { x: cx,    y: y + h },           // bottom (for earth symbol)
-    },
-  };
+  const ports: ComponentPorts = {};
+  terminals.forEach(({ name, ratio }) => {
+    ports[name] = { x: x + termPad + ratio * termSpan, y: termY + termH };
+  });
+
+  return { svg, ports };
 }
 
 // ---------------------------------------------------------------------------
@@ -832,19 +898,37 @@ export function drawMPPT(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 60 ? 0.82 : 1));
 
+  // Use Victron's pipe notation for model display
   const displayModel = 'SmartSolar MPPT ' + model.replace('/', '|');
 
-  // Schematic layout: PV+ / PV− on TOP, BAT+ / BAT− on RIGHT
-  const pvPosX  = cx + w * 0.20;   // matches override offset
-  const pvNegX  = cx - w * 0.20;   // matches override offset
-  const termW = 9; const termH = 7;
+  // Terminal cover hood dimensions
   const hoodH = 12;
   const hoodW = w * 0.84;
   const hoodX = cx - hoodW / 2;
 
-  // BAT ports on right side — offsets match overridePort
-  const batPosY = cy - h * 0.15;
-  const batNegY = cy + h * 0.15;
+  // Terminal positions: PV+ right of centre, PV− left
+  const pvPosX  = cx + w * 0.20;
+  const pvNegX  = cx - w * 0.24;
+  const batPosX = cx + w * 0.20;
+  const batNegX = cx - w * 0.24;
+
+  // Terminal stub dimensions
+  const termW = 9; const termH = 7;
+
+  // Vent slots
+  const ventW = w * 0.62;
+  const vents = [...Array(4)].map((_, i) =>
+    `<rect x="${x + w * 0.12}" y="${y + 46 + i * 8}" width="${ventW}" height="4" rx="1" fill="#0D1E3A" opacity="0.8"/>`
+  ).join('');
+
+  // LED row
+  const ledXs = [x + w * 0.6, x + w * 0.72, x + w * 0.84];
+  const ledCols = ['#27AE60', '#F0A500', '#555'];
+  const ledLabels = ['BULK', 'ABS', 'FLT'];
+  const ledSVG = ledXs.map((lx, i) =>
+    `<circle cx="${lx}" cy="${y + h - 16}" r="2.5" fill="${ledCols[i]}" opacity="0.9"/>
+${txt(lx, y + h - 8, ledLabels[i], f(3.8), '#5A9AC8')}`
+  ).join('');
 
   const svg = `<g id="mppt-${cx}-${cy}">
   <!-- Drop shadow -->
@@ -853,61 +937,75 @@ export function drawMPPT(
   ${rr(x, y, w, h, 3, '#1C3F6E', '#0D2647', 1.2)}
 
   <!-- ORANGE header stripe -->
-  ${rr(x, y, w, 18, 3, '#E8750A')}
-  ${txt(cx, y + 7, 'victron energy', f(6), '#FFF', 'bold')}
-  ${txt(cx, y + 14.5, 'SmartSolar MPPT', f(4), '#FFE0B2')}
+  ${rr(x, y, w, 20, 3, '#E8750A')}
+  ${txt(cx, y + 8, 'victron energy', f(6.5), '#FFF', 'bold')}
+  ${txt(cx, y + 16, 'SmartSolar MPPT', f(4.5), '#FFE0B2')}
 
   <!-- Model band -->
-  ${rr(x + 3, y + 20, w - 6, 10, 2, '#142D50')}
-  ${txt(cx, y + 25, esc(displayModel), f(4.5), '#7FB8E0', 'bold')}
+  ${rr(x + 3, y + 23, w - 6, 12, 2, '#142D50')}
+  ${txt(cx, y + 29, esc(displayModel), f(5.5), '#7FB8E0', 'bold')}
 
-  <!-- SOLAR INPUT label -->
-  ${txt(cx, y + 38, 'SOLAR INPUT', f(4), '#5A9AC8')}
+  <!-- SOLAR INPUT section label -->
+  ${rr(x + 4, y + 38, w - 8, 9, 1, '#0D1E3A', undefined, undefined, 0.8)}
+  ${txt(cx, y + 42.5, 'SOLAR INPUT', f(4.5), '#5A9AC8')}
 
-  <!-- Vent grilles -->
-  ${[...Array(3)].map((_, i) => `<rect x="${x + 6}" y="${y + 44 + i * 8}" width="${w * 0.5}" height="3.5" rx="1" fill="#0D1E3A" opacity="0.8"/>`).join('')}
+  <!-- Body detail — vent grilles -->
+  ${vents}
 
-  <!-- BATTERY OUTPUT label -->
-  ${txt(cx - 8, y + h - 20, 'BAT', f(4), '#5A9AC8')}
-  ${txt(cx - 8, y + h - 12, 'OUT', f(4), '#5A9AC8')}
+  <!-- BATTERY OUTPUT section label -->
+  ${rr(x + 4, y + h - 32, w - 8, 9, 1, '#0D1E3A', undefined, undefined, 0.8)}
+  ${txt(cx, y + h - 27.5, 'BATTERY OUTPUT', f(4.5), '#5A9AC8')}
 
-  <!-- LED row -->
-  <circle cx="${x + w * 0.2}" cy="${y + h - 10}" r="2" fill="#27AE60" opacity="0.9"/>
-  <circle cx="${x + w * 0.35}" cy="${y + h - 10}" r="2" fill="#F0A500" opacity="0.9"/>
-  ${txt(x + w * 0.14, y + h - 5, 'BT', f(3.5), '#3B9BE8')}
+  <!-- LED status row -->
+  ${ledSVG}
 
-  <!-- ─── PV terminal hood (TOP) ─── -->
+  <!-- Bluetooth detail (very small logo mark) -->
+  ${txt(x + w * 0.14, y + h - 13, 'BT', f(4), '#3B9BE8')}
+
+  <!-- ─── PV INPUT terminal cover hood (top) ─── -->
+  <!-- Hood housing -->
   ${rr(hoodX - 2, y - hoodH - 2, hoodW + 4, hoodH + 2, 2, '#CCCCBB', '#AAA', 0.8)}
-  <!-- PV+ slot (right of centre) -->
-  ${rr(pvPosX - termW / 2, y - hoodH + 1, termW, hoodH * 0.6, 1.5, '#AAA8A0', '#888', 0.8)}
-  ${txt(pvPosX, y - hoodH * 0.65, 'PV+', f(4.5), '#1A1A1A', 'bold')}
-  ${rr(pvPosX - termW / 2, y - termH, termW, termH, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(pvPosX, y - termH / 2, 3)}
-  <!-- PV− slot (left of centre) -->
+  <!-- PV− slot (left) -->
   ${rr(pvNegX - termW / 2, y - hoodH + 1, termW, hoodH * 0.6, 1.5, '#AAA8A0', '#888', 0.8)}
   ${txt(pvNegX, y - hoodH * 0.65, 'PV\u2212', f(4.5), '#1A1A1A', 'bold')}
+  <!-- PV+ slot (right) -->
+  ${rr(pvPosX - termW / 2, y - hoodH + 1, termW, hoodH * 0.6, 1.5, '#AAA8A0', '#888', 0.8)}
+  ${txt(pvPosX, y - hoodH * 0.65, 'PV+', f(4.5), '#1A1A1A', 'bold')}
+
+  <!-- PV+ terminal stub below hood -->
+  ${rr(pvPosX - termW / 2, y - termH, termW, termH, 1.5, '#C0392B', '#8B0000', 0.9)}
+  ${hexNut(pvPosX, y - termH / 2, 3)}
+
+  <!-- PV− terminal stub below hood -->
   ${rr(pvNegX - termW / 2, y - termH, termW, termH, 1.5, '#222', '#111', 0.9)}
   ${hexNut(pvNegX, y - termH / 2, 3)}
 
-  <!-- ─── BAT terminals (RIGHT side) — FIX #3: compact hoods ─── -->
-  ${rr(x + w - 1, batPosY - 5, 8, 10, 1.5, '#CCCCBB', '#AAA', 0.8)}
-  ${rr(x + w - 1, batPosY - 4, termH, 8, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(x + w + 3, batPosY, 2.5)}
-  ${txt(x + w + 10, batPosY, 'B+', f(4.5), '#C0392B', 'bold', 'start')}
+  <!-- ─── BATTERY OUTPUT terminal cover hood (bottom) ─── -->
+  <!-- Hood housing -->
+  ${rr(hoodX - 2, y + h, hoodW + 4, hoodH + 2, 2, '#CCCCBB', '#AAA', 0.8)}
+  <!-- BAT− slot (left) -->
+  ${rr(batNegX - termW / 2, y + h + 1, termW, hoodH * 0.6, 1.5, '#AAA8A0', '#888', 0.8)}
+  ${txt(batNegX, y + h + hoodH + 5, 'BAT\u2212', f(4.5), '#1A1A1A', 'bold')}
+  <!-- BAT+ slot (right) -->
+  ${rr(batPosX - termW / 2, y + h + 1, termW, hoodH * 0.6, 1.5, '#AAA8A0', '#888', 0.8)}
+  ${txt(batPosX, y + h + hoodH + 5, 'BAT+', f(4.5), '#1A1A1A', 'bold')}
 
-  ${rr(x + w - 1, batNegY - 5, 8, 10, 1.5, '#CCCCBB', '#AAA', 0.8)}
-  ${rr(x + w - 1, batNegY - 4, termH, 8, 1.5, '#222', '#111', 0.9)}
-  ${hexNut(x + w + 3, batNegY, 2.5)}
-  ${txt(x + w + 10, batNegY, 'B\u2212', f(4.5), '#666', 'bold', 'start')}
+  <!-- BAT+ terminal stub above hood -->
+  ${rr(batPosX - termW / 2, y + h + termH * 0.4, termW, termH, 1.5, '#C0392B', '#8B0000', 0.9)}
+  ${hexNut(batPosX, y + h + termH, 3)}
+
+  <!-- BAT− terminal stub -->
+  ${rr(batNegX - termW / 2, y + h + termH * 0.4, termW, termH, 1.5, '#222', '#111', 0.9)}
+  ${hexNut(batNegX, y + h + termH, 3)}
 </g>`;
 
   return {
     svg,
     ports: {
-      pv_positive:  { x: pvPosX,  y: y },            // top edge
-      pv_negative:  { x: pvNegX,  y: y },             // top edge
-      bat_positive: { x: x + w,   y: batPosY },       // right edge
-      bat_negative: { x: x + w,   y: batNegY },       // right edge
+      pv_positive:  { x: pvPosX,  y: y - termH },
+      pv_negative:  { x: pvNegX,  y: y - termH },
+      bat_positive: { x: batPosX, y: y + h + termH },
+      bat_negative: { x: batNegX, y: y + h + termH },
     },
   };
 }
@@ -939,60 +1037,98 @@ export function drawOrionDCDC(
   const y = cy - h / 2;
   const f = (n: number) => Math.round(n * (w < 70 ? 0.7 : 1));
 
+  // Victron pipe notation for model display
   const displayModel = model.replace(/\//g, ' | ');
 
-  // Schematic layout: IN+ on TOP, IN− on LEFT, OUT+/OUT− on BOTTOM
-  const termW = 8; const termH = 6;
+  // Terminal block at bottom — all 4 screw terminals in a row
+  const termBlockH = Math.round(h * 0.18);
+  const termBlockY = y + h - termBlockH;
+  const termR = Math.max(3, Math.round(w * 0.04));
+  // Terminal X positions: IN+, IN−, OUT−, OUT+ (left to right, matching real product)
+  const tSpacing = w / 5;
+  const t1x = x + tSpacing * 1; // IN+
+  const t2x = x + tSpacing * 2; // IN−
+  const t3x = x + tSpacing * 3; // OUT−
+  const t4x = x + tSpacing * 4; // OUT+
+  const termCy = termBlockY + termBlockH / 2;
+
+  // Orange accent bar
+  const barY = y + h * 0.58;
+  const barH = Math.max(4, Math.round(h * 0.06));
+
+  // Mounting holes
+  const mhR = Math.max(1.5, Math.round(w * 0.02));
 
   const svg = `<g id="orion-${cx}-${cy}">
   <!-- Drop shadow -->
   <rect x="${x + 2}" y="${y + 2}" width="${w}" height="${h}" rx="4" fill="#000" opacity="0.15"/>
-  <!-- Main body — Victron lighter blue -->
+
+  <!-- Main body — Victron blue (lighter than MultiPlus, matches real Orion-Tr) -->
   ${rr(x, y, w, h, 4, '#2E86C1', '#1A6FA0', 1.2)}
 
-  <!-- Brand -->
-  ${txt(cx, y + h * 0.12, 'victron energy', f(5.5), '#FFF', 'bold')}
-  <!-- Product name -->
-  ${txt(cx, y + h * 0.24, 'Orion-Tr', f(6.5), '#FFF', 'bold')}
-  ${txt(cx, y + h * 0.34, 'Smart', f(6), '#FFF', 'bold')}
-  <!-- Model -->
-  ${txt(cx, y + h * 0.46, esc(displayModel), f(5.5), '#E8F4FD', 'bold')}
-  ${txt(cx, y + h * 0.56, 'DC-DC', f(4.5), '#B0D4F1')}
+  <!-- Mounting holes top corners -->
+  <circle cx="${x + 8}" cy="${y + 8}" r="${mhR}" fill="#D5D5D5" stroke="#AAA" stroke-width="0.5"/>
+  <circle cx="${x + w - 8}" cy="${y + 8}" r="${mhR}" fill="#D5D5D5" stroke="#AAA" stroke-width="0.5"/>
 
-  <!-- Orange accent bar -->
-  ${rr(x + 4, y + h * 0.62, w - 8, 4, 2, '#E8750A')}
+  <!-- Bluetooth icon area -->
+  <circle cx="${x + 12}" cy="${y + h * 0.15}" r="${Math.max(3, f(4))}" fill="#1A5A8A" opacity="0.7"/>
+  ${txt(x + 12, y + h * 0.15, 'BT', f(3.5), '#7FB8E0', 'bold')}
 
-  <!-- LED -->
-  <circle cx="${x + w * 0.75}" cy="${y + h * 0.75}" r="2" fill="#27AE60" opacity="0.9"/>
+  <!-- Brand: "victron energy" -->
+  ${txt(cx, y + h * 0.12, 'victron energy', f(6), '#FFF', 'bold')}
 
-  <!-- ─── IN+ terminal (TOP edge) ─── -->
-  ${rr(cx - w * 0.15 - termW / 2, y - termH - 2, termW, termH + 2, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(cx - w * 0.15, y - termH / 2, 2.5)}
-  ${txt(cx - w * 0.15, y - termH - 5, 'IN+', f(4), '#C0392B', 'bold')}
+  <!-- Product name large -->
+  ${txt(cx, y + h * 0.24, 'Orion-Tr Smart', f(7), '#FFF', 'bold')}
 
-  <!-- ─── IN− terminal (LEFT edge) ─── -->
-  ${rr(x - termH - 2, cy - termW / 2, termH + 2, termW, 1.5, '#333', '#111', 0.9)}
-  ${hexNut(x - termH / 2, cy, 2.5)}
-  ${txt(x - termH - 5, cy, 'IN\u2212', f(4), '#888', 'bold', 'end')}
+  <!-- Model number -->
+  ${txt(cx, y + h * 0.34, esc(displayModel), f(6.5), '#E8F4FD', 'bold')}
 
-  <!-- ─── OUT+ terminal (BOTTOM edge, right of centre) ─── -->
-  ${rr(cx + w * 0.15 - termW / 2, y + h, termW, termH + 2, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(cx + w * 0.15, y + h + termH / 2, 2.5)}
-  ${txt(cx + w * 0.15, y + h + termH + 5, 'OUT+', f(4), '#C0392B', 'bold')}
+  <!-- "isolated DC-DC charger" -->
+  ${txt(cx, y + h * 0.43, 'isolated DC-DC charger', f(4.5), '#B0D4F1')}
 
-  <!-- ─── OUT− terminal (BOTTOM edge, left of centre) ─── -->
-  ${rr(cx - w * 0.15 - termW / 2, y + h, termW, termH + 2, 1.5, '#333', '#111', 0.9)}
-  ${hexNut(cx - w * 0.15, y + h + termH / 2, 2.5)}
-  ${txt(cx - w * 0.15, y + h + termH + 5, 'OUT\u2212', f(4), '#888', 'bold')}
+  <!-- Orange accent bar (the distinctive Orion stripe) -->
+  ${rr(x + w * 0.08, barY, w * 0.84, barH, 2, '#E8750A')}
+
+  <!-- On/off label + LED -->
+  ${txt(x + w * 0.78, y + h * 0.70, 'on/off', f(3.5), '#B0D4F1')}
+  <circle cx="${x + w * 0.78}" cy="${y + h * 0.75}" r="${Math.max(2, f(2.5))}" fill="#27AE60" opacity="0.9"/>
+
+  <!-- ═══ TERMINAL BLOCK (bottom) ═══ -->
+  ${rr(x + 3, termBlockY, w - 6, termBlockH, 2, '#2A2A2A', '#1A1A1A', 0.9)}
+
+  <!-- INPUT / OUTPUT labels -->
+  ${txt((t1x + t2x) / 2, termBlockY - 4, 'INPUT', f(4), '#B0D4F1', 'bold')}
+  ${txt((t3x + t4x) / 2, termBlockY - 4, 'OUTPUT', f(4), '#B0D4F1', 'bold')}
+
+  <!-- Divider line between INPUT and OUTPUT -->
+  <line x1="${(t2x + t3x) / 2}" y1="${termBlockY + 2}" x2="${(t2x + t3x) / 2}" y2="${termBlockY + termBlockH - 2}" stroke="#444" stroke-width="0.6"/>
+
+  <!-- IN+ screw terminal (red) -->
+  <circle cx="${t1x}" cy="${termCy}" r="${termR}" fill="#C0392B" stroke="#8B0000" stroke-width="0.6"/>
+  <circle cx="${t1x}" cy="${termCy}" r="${termR * 0.5}" fill="#E05555"/>
+
+  <!-- IN− screw terminal (dark) -->
+  <circle cx="${t2x}" cy="${termCy}" r="${termR}" fill="#333" stroke="#222" stroke-width="0.6"/>
+  <circle cx="${t2x}" cy="${termCy}" r="${termR * 0.5}" fill="#555"/>
+
+  <!-- OUT− screw terminal (dark) -->
+  <circle cx="${t3x}" cy="${termCy}" r="${termR}" fill="#333" stroke="#222" stroke-width="0.6"/>
+  <circle cx="${t3x}" cy="${termCy}" r="${termR * 0.5}" fill="#555"/>
+
+  <!-- OUT+ screw terminal (red) -->
+  <circle cx="${t4x}" cy="${termCy}" r="${termR}" fill="#C0392B" stroke="#8B0000" stroke-width="0.6"/>
+  <circle cx="${t4x}" cy="${termCy}" r="${termR * 0.5}" fill="#E05555"/>
 </g>`;
 
+  // Port positions — all at the bottom of the terminal block, exiting DOWN
+  const portY = termBlockY + termBlockH;
   return {
     svg,
     ports: {
-      in_positive:  { x: cx - w * 0.15, y: y },         // top edge
-      in_negative:  { x: x,             y: cy },         // left edge
-      out_positive: { x: cx + w * 0.15, y: y + h },     // bottom edge
-      out_negative: { x: cx - w * 0.15, y: y + h },     // bottom edge
+      in_positive: { x: t1x, y: portY },
+      in_negative: { x: t2x, y: portY },
+      out_positive: { x: t4x, y: portY },
+      out_negative: { x: t3x, y: portY },
     },
   };
 }
@@ -1023,34 +1159,33 @@ export function drawBatteryProtect(
   const inX  = cx - w * 0.22;
   const outX = cx + w * 0.22;
 
-  // Schematic layout: IN+ on LEFT, OUT+ on RIGHT
   const svg = `<g id="bp-${cx}-${cy}">
   ${rr(x, y, w, h, 3, '#1C3F6E', '#0D2647', 1.2)}
-  ${rr(x, y, w, 16, 3, '#E8750A')}
-  ${txt(cx, y + 6, 'victron energy', f(5.5), '#FFF', 'bold')}
-  ${txt(cx, y + 13, 'BatteryProtect', f(4), '#FFE0B2')}
-  ${rr(x + 3, y + 18, w - 6, 10, 2, '#142D50')}
-  ${txt(cx, y + 23, `${amps}A`, f(5.5), '#7FB8E0', 'bold')}
-  ${txt(cx, cy + 6, 'LOAD', f(4.5), '#5A9AC8')}
-  ${txt(cx, cy + 14, 'DISCONNECT', f(4), '#5A9AC8')}
-  <circle cx="${x + w - 7}" cy="${y + 9}" r="2" fill="#27AE60" opacity="0.9"/>
+  ${rr(x, y, w, 18, 3, '#E8750A')}
+  ${txt(cx, y + 7, 'victron energy', f(6), '#FFF', 'bold')}
+  ${txt(cx, y + 14, 'BatteryProtect', f(4.5), '#FFE0B2')}
+  ${rr(x + 4, y + 21, w - 8, 11, 2, '#142D50')}
+  ${txt(cx, y + 26.5, `${amps}A  12/24V`, f(5.5), '#7FB8E0', 'bold')}
+  ${rr(x + 6, y + 35, w - 12, h * 0.38, 2, '#0D1E3A', undefined, undefined, 0.8)}
+  ${txt(cx, y + 35 + h * 0.19, 'LOAD DISCONNECT', f(5), '#5A9AC8')}
+  <circle cx="${x + w - 8}" cy="${y + 11}" r="2.5" fill="#27AE60" opacity="0.9"/>
 
-  <!-- IN+ terminal (LEFT edge) -->
-  ${rr(x - termH, cy - termW / 2, termH, termW, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(x - termH / 2, cy, 2.5)}
-  ${txt(x - termH - 4, cy, 'IN+', f(5.5), '#C0392B', 'bold', 'end')}
+  <!-- IN+ terminal (top left) -->
+  ${rr(inX - termW / 2, y - termH, termW, termH, 1.5, '#C0392B', '#8B0000', 0.9)}
+  ${hexNut(inX, y - termH / 2, 3)}
+  ${txt(inX, y - termH - 5, 'IN+', f(4.5), '#C0392B', 'bold')}
 
-  <!-- OUT+ terminal (RIGHT edge) — FIX #9: bigger labels -->
-  ${rr(x + w, cy - termW / 2, termH, termW, 1.5, '#C0392B', '#8B0000', 0.9)}
-  ${hexNut(x + w + termH / 2, cy, 2.5)}
-  ${txt(x + w + termH + 4, cy, 'OUT+', f(5.5), '#C0392B', 'bold', 'start')}
+  <!-- OUT+ terminal (top right) -->
+  ${rr(outX - termW / 2, y - termH, termW, termH, 1.5, '#C0392B', '#8B0000', 0.9)}
+  ${hexNut(outX, y - termH / 2, 3)}
+  ${txt(outX, y - termH - 5, 'OUT+', f(4.5), '#C0392B', 'bold')}
 </g>`;
 
   return {
     svg,
     ports: {
-      in_positive:  { x: x,     y: cy },     // left edge
-      out_positive: { x: x + w, y: cy },     // right edge
+      in_positive:  { x: inX,  y: y - termH },
+      out_positive: { x: outX, y: y - termH },
     },
   };
 }
@@ -1065,22 +1200,23 @@ export function drawIsolatorSwitch(
   const x = cx - w / 2;
   const y = cy - h / 2;
 
-  // Generic isolator — ports at top and bottom, overrides reposition per instance
   const svg = `<g id="isolator-${cx}-${cy}">
   ${rr(x, y, w, h, 3, '#2C2C2C', '#111', 1.5)}
-  ${txt(cx, y + 8, 'ISOLATOR', 5.5, '#CCCCCC', 'bold')}
-  <!-- Rotary knob -->
-  <circle cx="${cx}" cy="${cy + 2}" r="${w * 0.28}" fill="#E8750A" stroke="#A05C00" stroke-width="1.5"/>
-  <circle cx="${cx}" cy="${cy + 2}" r="${w * 0.28 * 0.55}" fill="#222"/>
-  <line x1="${cx}" y1="${cy + 2 - w * 0.28 * 0.55}" x2="${cx}" y2="${cy + 2 - w * 0.28 * 0.82}" stroke="#DDD" stroke-width="1.5" stroke-linecap="round"/>
-  ${txt(cx, y + h - 6, 'ON/OFF', 4.5, '#888')}
+  ${rr(x, y, w, 12, 2, '#3A3A3A')}
+  ${txt(cx, y + 6, 'ISOLATOR', 6, '#CCCCCC', 'bold')}
+  <!-- Rotary knob — orange = Victron accent -->
+  <circle cx="${cx}" cy="${cy + 4}" r="${w * 0.32}" fill="#E8750A" stroke="#A05C00" stroke-width="1.5"/>
+  <circle cx="${cx}" cy="${cy + 4}" r="${w * 0.32 * 0.55}" fill="#222"/>
+  <!-- Switch indicator line -->
+  <line x1="${cx}" y1="${cy + 4 - w * 0.32 * 0.55}" x2="${cx}" y2="${cy + 4 - w * 0.32 * 0.82}" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
+  ${txt(cx, y + h - 7, 'ON / OFF', 5, '#888')}
 </g>`;
 
   return {
     svg,
     ports: {
-      in_positive:  { x: cx, y: y + h },    // bottom (overrides will move)
-      out_positive: { x: cx, y: y },         // top (overrides will move)
+      in_positive:  { x: cx, y: y },
+      out_positive: { x: cx, y: y + h },
     },
   };
 }
@@ -1139,53 +1275,36 @@ export function drawFuseBlock(
   const x = cx - w / 2;
   const y = cy - h / 2;
 
-  // Schematic layout: pos_in/neg_in on TOP, out_1/2/3 on LEFT
-  const nFuses = 3;
-  const fH = (h - 20) / nFuses - 3;
-
+  const nFuses = 6;
+  const fW = (w - 12) / nFuses - 2;
   const fuses = [...Array(nFuses)].map((_, i) => {
-    const fy = y + 14 + i * (fH + 3);
-    return `${rr(x + 4, fy, w - 8, fH, 1.5, '#C0392B', '#8B0000', 0.7)}
-    ${txt(cx, fy + fH / 2, '10A', 4.5, '#FFF', 'bold')}`;
+    const fx = x + 6 + i * (fW + 2);
+    const fCx = fx + fW / 2;
+    return `${rr(fx, cy - 9, fW, 18, 1.5, '#C0392B', '#8B0000', 0.7)}
+    <!-- Fuse element visible area -->
+    ${rr(fx + 1, cy - 4, fW - 2, 8, 1, '#E04030', undefined, undefined, 0.5)}
+    ${txt(fCx, cy, '10A', 4, '#FFF', 'bold')}`;
   }).join('');
 
   const svg = `<g id="fuseblock-${cx}-${cy}">
   ${rr(x, y, w, h, 3, '#1A1A1A', '#111', 1.2)}
   ${rr(x, y, w, 11, 2, '#2A2A2A')}
-  ${txt(cx, y + 5.5, 'FUSE BLOCK', 5, '#CCCCCC', 'bold')}
+  ${txt(cx, y + 5.5, 'FUSE BLOCK', 5.5, '#CCCCCC', 'bold')}
   ${fuses}
-
-  <!-- TOP edge: pos_in (right of centre) -->
-  ${rr(cx + w * 0.15 - 4, y - 7, 8, 7, 1.5, '#C8A030', '#8F6A1A', 0.8)}
-  ${hexNut(cx + w * 0.15, y - 3.5, 3, '#999', '#666')}
-  ${txt(cx + w * 0.15, y - 10, '+IN', 4, '#C8A030', 'bold')}
-
-  <!-- TOP edge: neg_in (left of centre) -->
-  ${rr(cx - w * 0.15 - 4, y - 7, 8, 7, 1.5, '#4A4A4A', '#333', 0.8)}
-  ${hexNut(cx - w * 0.15, y - 3.5, 3, '#666', '#444')}
-  ${txt(cx - w * 0.15, y - 10, '\u2212IN', 4, '#888', 'bold')}
-
-  <!-- LEFT edge: out_1 (upper) -->
-  ${rr(x - 7, cy - h * 0.2 - 4, 7, 8, 1.5, '#C0392B', '#8B0000', 0.8)}
-  ${txt(x - 10, cy - h * 0.2, '1', 4, '#C0392B', 'bold', 'end')}
-
-  <!-- LEFT edge: out_2 (centre) -->
-  ${rr(x - 7, cy - 4, 7, 8, 1.5, '#C0392B', '#8B0000', 0.8)}
-  ${txt(x - 10, cy, '2', 4, '#C0392B', 'bold', 'end')}
-
-  <!-- LEFT edge: out_3 (lower) -->
-  ${rr(x - 7, cy + h * 0.2 - 4, 7, 8, 1.5, '#C0392B', '#8B0000', 0.8)}
-  ${txt(x - 10, cy + h * 0.2, '3', 4, '#C0392B', 'bold', 'end')}
+  ${txt(cx, y + h - 5, '6-way  12V', 4.5, '#666')}
+  <!-- Input positive stud top-centre -->
+  ${hexNut(cx, y, 4.5, '#C8A840', '#8B6914')}
+  <!-- Negative rail bottom -->
+  ${rr(x + 4, y + h - 3, w - 8, 2, 0, '#333')}
 </g>`;
 
   return {
     svg,
     ports: {
-      pos_in: { x: cx + w * 0.15, y: y },              // top, right of centre
-      neg_in: { x: cx - w * 0.15, y: y },              // top, left of centre
-      out_1:  { x: x,             y: cy - h * 0.2 },   // left, upper
-      out_2:  { x: x,             y: cy },              // left, centre
-      out_3:  { x: x,             y: cy + h * 0.2 },   // left, lower
+      pos_in: { x: cx,     y: y },
+      neg_in: { x: cx,     y: y + h },
+      out_1:  { x: x + 6,  y: y + h },
+      out_2:  { x: x + 17, y: y + h },
     },
   };
 }
@@ -1269,13 +1388,12 @@ export function drawShoreInlet(
   ${screw(cx + r * 0.72, cy + r * 0.72, 2)}
 </g>`;
 
-  // Schematic layout: ac_line on BOTTOM
   return {
     svg,
     ports: {
-      ac_line:    { x: cx,            y: cy + r },     // bottom edge
-      ac_neutral: { x: cx + r * 0.18, y: cy + r },
-      earth:      { x: cx - r * 0.18, y: cy + r },
+      ac_line:    { x: cx - r * 0.18, y: cy - r },
+      ac_neutral: { x: cx + r * 0.18, y: cy - r },
+      earth:      { x: cx,            y: cy - r },
     },
   };
 }
@@ -1313,14 +1431,12 @@ export function drawConsumerUnit(
   ${txt(cx, y + h - 6, '230V AC', f(5), '#888')}
 </g>`;
 
-  // FIX #11: add ac_out_3 port for consumer_unit_out
   return {
     svg,
     ports: {
       ac_in:    { x: cx, y: y },
-      ac_out_1: { x: x + 5 + bkW / 2,                         y: y + h },
-      ac_out_2: { x: x + 5 + (bkW + 2) + bkW / 2,             y: y + h },
-      ac_out_3: { x: x + 5 + 2 * (bkW + 2) + bkW / 2,         y: y + h },
+      ac_out_1: { x: x + 5 + bkW / 2,               y: y + h },
+      ac_out_2: { x: x + 5 + (bkW + 2) + bkW / 2,   y: y + h },
     },
   };
 }
@@ -1368,9 +1484,9 @@ export function drawSolarPanel(
   <!-- Junction box -->
   ${rr(jboxX, jboxY, jboxW, jboxH, 1, '#2A2A2A', '#444', 0.8)}
   ${txt(cx, jboxY + jboxH / 2, 'J-BOX', 3.5, '#888')}
-  <!-- PV+ / PV− cable exits from junction box — FIX #12: bigger labels -->
-  ${txt(cx + w * 0.18, y + h + 6, 'PV+', 5.5, '#C0392B', 'bold')}
-  ${txt(cx - w * 0.18, y + h + 6, 'PV\u2212', 5.5, '#888', 'bold')}
+  <!-- PV+ / PV− cable exits from junction box -->
+  ${txt(cx + w * 0.18, y + h - 2, 'PV+', 4, '#C0392B', 'bold')}
+  ${txt(cx - w * 0.18, y + h - 2, 'PV\u2212', 4, '#888', 'bold')}
 </g>`;
 
   return {
@@ -1397,7 +1513,6 @@ export function drawPVDisconnect(
   const x = cx - w / 2;
   const y = cy - h / 2;
 
-  // Schematic layout: pv_in on LEFT, pv_out on BOTTOM — FIX #10: visible edge terminals
   const svg = `<g id="pvdisconnect-${cx}-${cy}">
   <!-- Red safety housing -->
   ${rr(x, y, w, h, 3, '#B02020', '#7A0000', 1.5)}
@@ -1406,95 +1521,20 @@ export function drawPVDisconnect(
   ${rr(x, y, w, 6, 2, '#F39C12')}
   ${txt(cx, y + 3, '\u26a0', 5, '#1A1A1A')}
   <!-- Labels -->
-  ${txt(cx, cy - 2, 'PV', 8, '#FFFFFF', 'bold')}
-  ${txt(cx, cy + 8, 'ISO', 5, '#FFB0B0')}
-  <!-- LEFT edge: PV IN terminal stub -->
-  ${rr(x - 6, cy - 4, 6, 8, 1, '#C0392B', '#800', 0.9)}
-  <!-- BOTTOM edge: PV OUT terminal stub -->
-  ${rr(cx - 4, y + h, 8, 6, 1, '#C0392B', '#800', 0.9)}
+  ${txt(cx, cy - 5, 'PV', 9, '#FFFFFF', 'bold')}
+  ${txt(cx, cy + 6, 'ISOLATOR', 5.5, '#FFB0B0')}
+  <!-- ON / OFF indicators -->
+  <circle cx="${x + 8}" cy="${y + h - 8}" r="3" fill="#27AE60"/>
+  ${txt(x + 8, y + h - 8, 'I', 4, '#FFF', 'bold')}
+  <circle cx="${x + w - 8}" cy="${y + h - 8}" r="3" fill="#C0392B" stroke="#800" stroke-width="0.5"/>
+  ${txt(x + w - 8, y + h - 8, 'O', 4, '#FFF', 'bold')}
 </g>`;
 
   return {
     svg,
     ports: {
-      pv_in_positive:  { x: x,  y: cy },       // left edge
-      pv_out_positive: { x: cx, y: y + h },     // bottom edge
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// NEW COMPONENTS — Fundamental Change v2
-// ---------------------------------------------------------------------------
-
-function drawClassTFuse(cx: number, cy: number, w: number, h: number, amps = 400): ComponentResult {
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  // FIX #5: larger text for readability
-  let svg = `<g>`;
-  svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#E8750A" stroke="#C0392B" stroke-width="1.5"/>`;
-  svg += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="8" fill="#fff" font-weight="800">CLASS T</text>`;
-  svg += `<text x="${cx}" y="${cy + 8}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="7" fill="rgba(255,255,255,0.9)">${amps}A</text>`;
-  svg += `</g>`;
-  return {
-    svg,
-    ports: {
-      in_positive:  { x: cx, y: y + h },        // bottom
-      out_positive: { x: x + w, y: cy },         // right
-    },
-  };
-}
-
-function drawCerboGX(cx: number, cy: number, w: number, h: number): ComponentResult {
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  let svg = `<g>`;
-  svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#1C3F6E" stroke="#7FB8E0" stroke-width="1"/>`;
-  svg += `<rect x="${x}" y="${y}" width="${w}" height="10" rx="4" fill="#E8750A"/>`;
-  svg += `<rect x="${x}" y="${y + 6}" width="${w}" height="4" fill="#E8750A"/>`;
-  svg += `<text x="${cx}" y="${y + 7}" text-anchor="middle" font-family="Arial,sans-serif" font-size="4.5" fill="#fff" font-weight="700">victron energy</text>`;
-  svg += `<text x="${cx}" y="${cy + 2}" text-anchor="middle" font-family="Arial,sans-serif" font-size="7" fill="#7FB8E0" font-weight="800">CERBO GX</text>`;
-  svg += `<text x="${cx}" y="${cy + 12}" text-anchor="middle" font-family="Arial,sans-serif" font-size="5" fill="rgba(127,184,224,0.7)">GX Monitor</text>`;
-  svg += `</g>`;
-  return {
-    svg,
-    ports: {
-      ve_bus:  { x: x, y: cy },                  // left
-      pos_12v: { x: cx - w * 0.15, y: y },       // top (left of centre)
-      neg_12v: { x: cx + w * 0.15, y: y },       // top (right of centre)
-    },
-  };
-}
-
-function drawDCLoad(cx: number, cy: number, w: number, h: number, label = 'DC Load'): ComponentResult {
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  let svg = `<g>`;
-  svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#3D3D3D" stroke="#888" stroke-width="1"/>`;
-  svg += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="6.5" fill="#ccc" font-weight="700">${esc(label.toUpperCase())}</text>`;
-  svg += `<text x="${cx}" y="${cy + 8}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="4.5" fill="rgba(200,200,200,0.6)">12V</text>`;
-  svg += `</g>`;
-  return {
-    svg,
-    ports: {
-      in_positive:  { x: x, y: cy },             // left
-      in_negative:  { x: x + w, y: cy },          // right
-    },
-  };
-}
-
-function drawACLoad(cx: number, cy: number, w: number, h: number, label = 'AC Load'): ComponentResult {
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  let svg = `<g>`;
-  svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#E8E8E8" stroke="#27AE60" stroke-width="1.5"/>`;
-  svg += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="6" fill="#333" font-weight="700">${esc(label.toUpperCase())}</text>`;
-  svg += `<text x="${cx}" y="${cy + 8}" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif" font-size="4.5" fill="rgba(50,50,50,0.6)">240V</text>`;
-  svg += `</g>`;
-  return {
-    svg,
-    ports: {
-      ac_in: { x: cx, y: y + h },                // bottom
+      pv_in_positive:  { x: cx, y: y },
+      pv_out_positive: { x: cx, y: y + h },
     },
   };
 }
@@ -1517,16 +1557,12 @@ export function drawComponent(spec: ComponentSpec): ComponentResult {
     case 'battery_protect': return drawBatteryProtect(cx, cy, w, h, (spec.amps as number) ?? 100);
     case 'isolator':        return drawIsolatorSwitch(cx, cy, w, h);
     case 'midi_fuse':       return drawMIDIFuse(cx, cy, w, h, (spec.amps as number) ?? 300);
-    case 'class_t_fuse':    return drawClassTFuse(cx, cy, w, h, (spec.amps as number) ?? 400);
     case 'fuse_block':      return drawFuseBlock(cx, cy, w, h);
     case 'earth_bar':       return drawEarthBar(cx, cy, w, h);
     case 'shore_inlet':     return drawShoreInlet(cx, cy, w, h);
     case 'consumer_unit':   return drawConsumerUnit(cx, cy, w, h, (spec.label as string) ?? 'Consumer Unit');
     case 'solar_panel':     return drawSolarPanel(cx, cy, w, h, (spec.watts as number) ?? 200);
     case 'pv_disconnect':   return drawPVDisconnect(cx, cy, w, h);
-    case 'cerbo_gx':        return drawCerboGX(cx, cy, w, h);
-    case 'dc_load':         return drawDCLoad(cx, cy, w, h, (spec.label as string) ?? 'DC Load');
-    case 'ac_load':         return drawACLoad(cx, cy, w, h, (spec.label as string) ?? 'AC Load');
     default:
       // Fallback — blue labelled box
       return {

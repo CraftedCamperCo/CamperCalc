@@ -439,7 +439,7 @@ export default function WiringScreen() {
   const [tab, setTab] = useState<Tab>('schematic');
   const [hasShore, setHasShore] = useState(true);
   const [cableRun, setCableRun] = useState<CableRunLength>('medium');
-  const [useLynx, setUseLynx] = useState(true);
+  const useLynx = true;
   const [mpptOverride, setMpptOverride] = useState<number | null>(null);
   const [dcDcOverride, setDcDcOverride] = useState<number | null>(null);
   const [mpptCustom, setMpptCustom] = useState('');
@@ -496,7 +496,7 @@ export default function WiringScreen() {
   const wiringSpec: WiringSpec | null = useMemo(() => {
     if (!wiringConfig) return null;
     try { return generateWiringSpec(wiringConfig); } catch { return null; }
-  }, [wiringConfig, hasShore, cableRun, useLynx]);
+  }, [wiringConfig, hasShore, cableRun]);
 
   // Smart validation — hard blocks + soft warnings
   const validationErrors: string[] = [];
@@ -526,7 +526,7 @@ export default function WiringScreen() {
       params: {
         hasShore: String(hasShore),
         cableRun,
-        useLynx: String(useLynx),
+        useLynx: 'true',
       },
     });
   }
@@ -700,13 +700,6 @@ export default function WiringScreen() {
                 thumbColor={hasShore ? theme.accent : isDark ? '#555' : '#ccc'} />
             </View>
           )}
-
-          <View style={s.optRow}>
-            <Text style={[s.optText, { color: theme.text }]}>Lynx Distribution</Text>
-            <Switch value={useLynx} onValueChange={setUseLynx}
-              trackColor={{ false: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', true: `${theme.accent}55` }}
-              thumbColor={useLynx ? theme.accent : isDark ? '#555' : '#ccc'} />
-          </View>
 
           {/* MPPT Solar Charger Size */}
           {buildSpec && buildSpec.recommendedSolarW > 0 && (

@@ -12,9 +12,8 @@ import { generateInstallationGuide } from './installationGuide';
 
 export function determineArchetype(config: SystemConfig): SystemArchetype {
   if (config.inverterVA === 0) return config.solarWatts === 0 ? 'MINIMAL' : 'BASIC_OFFGRID';
-  if (config.inverterVA <= 1200 && !config.hasShore) return 'STANDARD_OFFGRID';
-  if (config.hasShore) return config.useLynx ? 'PREMIUM_SHORE' : 'STANDARD_SHORE';
-  return config.useLynx ? 'PREMIUM_OFFGRID' : 'STANDARD_OFFGRID';
+  if (config.hasShore) return 'PREMIUM_SHORE';
+  return 'PREMIUM_OFFGRID';
 }
 
 function selectBattery(ah: number): string { if (ah <= 105) return 'fogstar_105'; if (ah <= 230) return 'fogstar_230'; if (ah <= 280) return 'fogstar_280'; if (ah <= 300) return 'fogstar_300'; if (ah <= 460) return 'fogstar_460'; return 'fogstar_608'; }
@@ -60,8 +59,10 @@ export function generateWiringSpec(config: SystemConfig): WiringSpec {
   const dcdc = dcdcId ? findProduct(dcdcId) : null;
   if (dcdc) components.push({ product: dcdc, quantity: 1, role: 'DC-DC Charger' });
 
-  const useLynx = config.useLynx && (archetype === 'PREMIUM_SHORE' || archetype === 'PREMIUM_OFFGRID');
-  if (useLynx) { components.push({ product: findProduct('lynx_dist')!, quantity: 1, role: 'DC Distribution' }); components.push({ product: findProduct('lynx_power_in')!, quantity: 1, role: 'Battery Connection' }); }
+  // Lynx is mandatory for all schematic builds (busbar fallback removed).
+  const useLynx = true;
+  components.push({ product: findProduct('lynx_dist')!, quantity: 1, role: 'DC Distribution' });
+  components.push({ product: findProduct('lynx_power_in')!, quantity: 1, role: 'Battery Connection' });
 
   const loadAmps = config.dcDcAmps + (mppt ? Number(mppt.specs.maxChargeAmps) : 0);
   const bp = findProduct(selectBatteryProtect(loadAmps))!;
