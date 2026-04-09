@@ -1,16 +1,18 @@
 import AppErrorBoundary from '@/components/AppErrorBoundary';
 import CartAbandonmentWatcher from '@/components/CartAbandonmentWatcher';
 import MailingListPopup from '@/components/MailingListPopup';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { EntitlementsProvider } from '@/context/EntitlementsContext';
 import { ProjectProvider } from '@/context/ProjectContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { supabase } from '@/utils/supabase';
 import { trackAppOpen } from '@/utils/analytics';
 import { initialiseSentry } from '@/utils/sentry';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ResizeMode, Video } from 'expo-av';
-import { Stack, usePathname } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, StyleSheet, View } from 'react-native';
@@ -138,9 +140,58 @@ function useMailingPopup() {
   return { showPopup, dismissPopup };
 }
 
+function usePasswordRecoveryNavigation() {
+  const { isRecoveringPassword } = useAuth();
+  const router = useRouter();
+
+  // Navigate to reset-password whenever Supabase fires a PASSWORD_RECOVERY event
+  useEffect(() => {
+    if (isRecoveringPassword) {
+      router.push('/reset-password');
+    }
+  }, [isRecoveringPassword]);
+}
+
+function useDeepLinkRecovery() {
+  // Parse recovery tokens from the deep link URL and hand them to Supabase.
+  // Supabase then fires onAuthStateChange with PASSWORD_RECOVERY.
+  useEffect(() => {
+    const handleUrl = async (url: string) => {
+      if (!url.includes('type=recovery')) return;
+
+      // Tokens can be in the fragment (#) or query string (?)
+      const fragmentIndex = url.indexOf('#');
+      const queryIndex = url.indexOf('?');
+      const paramString = fragmentIndex !== -1
+        ? url.slice(fragmentIndex + 1)
+        : queryIndex !== -1 ? url.slice(queryIndex + 1) : '';
+
+      if (!paramString) return;
+
+      const params = new URLSearchParams(paramString);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      }
+    };
+
+    // Cold-start deep link
+    Linking.getInitialURL().then((url) => { if (url) void handleUrl(url); });
+
+    // Foreground deep link
+    const sub = Linking.addEventListener('url', ({ url }) => { void handleUrl(url); });
+    return () => sub.remove();
+  }, []);
+}
+
 function AppNavigator() {
   const theme = useTheme();
   const { showPopup, dismissPopup } = useMailingPopup();
+
+  useDeepLinkRecovery();
+  usePasswordRecoveryNavigation();
 
   return (
     <>
@@ -169,6 +220,7 @@ function AppNavigator() {
         <Stack.Screen name="cookies" />
         <Stack.Screen name="faq" />
         <Stack.Screen name="support" />
+        <Stack.Screen name="reset-password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="(calc)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="+not-found" />

@@ -7,10 +7,12 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isRecoveringPassword: boolean;
   signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error?: string }>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ error?: string }>;
+  updatePassword: (password: string) => Promise<{ error?: string }>;
   updateProfile: (firstName: string, lastName?: string) => Promise<{ error?: string }>;
 }
 
@@ -18,10 +20,12 @@ const AuthContext = createContext<AuthState>({
   user: null,
   session: null,
   loading: true,
+  isRecoveringPassword: false,
   signUp: async () => ({}),
   signIn: async () => ({}),
   signOut: async () => {},
   forgotPassword: async () => ({}),
+  updatePassword: async () => ({}),
   updateProfile: async () => ({}),
 });
 
@@ -29,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -40,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
+      if (_event === 'PASSWORD_RECOVERY') {
+        setIsRecoveringPassword(true);
+      }
       if (s?.user) identifyUser(s.user.id, s.user.email);
       else clearUser();
     });
@@ -76,8 +84,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const forgotPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'camperplan://reset-password',
+    });
     if (error) return { error: error.message };
+    return {};
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    setIsRecoveringPassword(false);
     return {};
   };
 
@@ -95,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, forgotPassword, updateProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, isRecoveringPassword, signUp, signIn, signOut, forgotPassword, updatePassword, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
