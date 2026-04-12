@@ -21,7 +21,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const NOTIFY_EMAIL = 'dan@craftedcamper.co';
-const NOTIFY_FROM_EMAIL = 'Crafted Camper <notifications@craftedcamper.co>';
+const NOTIFY_FROM_EMAIL = 'Crafted Camper <orders@craftedcamper.co>';
 
 serve(async (req: Request) => {
   // CORS

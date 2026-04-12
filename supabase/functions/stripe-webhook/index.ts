@@ -12,7 +12,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const ORDER_FROM_EMAIL = Deno.env.get('ORDER_FROM_EMAIL') || 'Crafted Camper <orders@craftedcamper.co>';
 const NOTIFY_EMAIL = 'dan@craftedcamper.co';
-const NOTIFY_FROM_EMAIL = 'Crafted Camper <notifications@craftedcamper.co>';
+const NOTIFY_FROM_EMAIL = 'Crafted Camper <orders@craftedcamper.co>';
 
 type StripeSession = {
   id: string;
