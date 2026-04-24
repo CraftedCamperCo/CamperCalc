@@ -135,7 +135,8 @@ export default function ProjectListScreen() {
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ new?: string }>();
-  const { signOut } = useAuth();
+  const { signOut, deleteAccount } = useAuth();
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const { projects, loading, createProject, selectProject, deleteProject, updateProjectPhotos } = useProjects();
   const isDark = theme.blurTint === 'dark';
 
@@ -312,6 +313,41 @@ export default function ProjectListScreen() {
   const pickVariant = (v: VanVariant) => {
     setSelectedVariant(v);
     setFormError('');
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? All your projects and data will be removed. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Final Confirmation',
+              'This will permanently delete your account and all associated data. Are you absolutely sure?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete My Account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeletingAccount(true);
+                    const result = await deleteAccount();
+                    setDeletingAccount(false);
+                    if (result.error) {
+                      Alert.alert('Error', result.error);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   const placeholderColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)';
@@ -511,6 +547,26 @@ export default function ProjectListScreen() {
               <Text style={[styles.addBtnText, { color: theme.accent }]}>New Project</Text>
             </TouchableOpacity>
           )}
+
+          {/* Account Management */}
+          <View style={styles.accountSection}>
+            <View style={styles.accountDivider} />
+            <TouchableOpacity
+              onPress={handleDeleteAccount}
+              style={styles.deleteAccountBtn}
+              activeOpacity={0.7}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? (
+                <ActivityIndicator size="small" color="#E74C3C" />
+              ) : (
+                <>
+                  <FontAwesome name="trash-o" size={14} color="#E74C3C" />
+                  <Text style={styles.deleteAccountText}>Delete Account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </Animated.View>
     </View>
@@ -569,4 +625,8 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 15, fontWeight: '600' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 4 },
   addBtnText: { fontSize: 15, fontWeight: '700' },
+  accountSection: { marginTop: 32, marginBottom: 20, alignItems: 'center' },
+  accountDivider: { width: 60, height: 1, backgroundColor: 'rgba(128,128,128,0.2)', marginBottom: 16 },
+  deleteAccountBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12 },
+  deleteAccountText: { fontSize: 13, fontWeight: '500', color: '#E74C3C' },
 });
