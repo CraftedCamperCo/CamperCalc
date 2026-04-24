@@ -11,6 +11,7 @@ interface AuthState {
   signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error?: string }>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error?: string }>;
   forgotPassword: (email: string) => Promise<{ error?: string }>;
   updatePassword: (password: string) => Promise<{ error?: string }>;
   updateProfile: (firstName: string, lastName?: string) => Promise<{ error?: string }>;
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthState>({
   signUp: async () => ({}),
   signIn: async () => ({}),
   signOut: async () => {},
+  deleteAccount: async () => ({}),
   forgotPassword: async () => ({}),
   updatePassword: async () => ({}),
   updateProfile: async () => ({}),
@@ -83,9 +85,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const deleteAccount = async () => {
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.access_token) return { error: 'Not signed in' };
+
+      const response = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${currentSession.access_token}` },
+      });
+
+      if (response.error) return { error: response.error.message || 'Failed to delete account' };
+
+      // Sign out locally after successful deletion
+      await supabase.auth.signOut();
+      return {};
+    } catch (e: any) {
+      return { error: e.message || 'Failed to delete account' };
+    }
+  };
+
   const forgotPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'camperplan://reset-password',
+      redirectTo: 'https://camperplan.com/reset-password.html',
     });
     if (error) return { error: error.message };
     return {};
@@ -112,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isRecoveringPassword, signUp, signIn, signOut, forgotPassword, updatePassword, updateProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, isRecoveringPassword, signUp, signIn, signOut, deleteAccount, forgotPassword, updatePassword, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
