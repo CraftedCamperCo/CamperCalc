@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.camperplan.crafted",
       "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "CamperPlan uses your photo library to let you attach photos to your campervan build projects. For example, you can add photos of your layout, materials, or completed work to track your build progress."
       }
     },
     "android": {
