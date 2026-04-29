@@ -2,6 +2,7 @@ import AuthorityBadge from '@/components/AuthorityBadge';
 import CraftedConfidenceBadge from '@/components/CraftedConfidenceBadge';
 import ElectricalDisclaimer from '@/components/ElectricalDisclaimer';
 import GlassCard from '@/components/GlassCard';
+import SchematicPaywall from '@/components/SchematicPaywall';
 import TopographicBackground from '@/components/TopographicBackground';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { useAuth } from '@/context/AuthContext';
@@ -480,8 +481,11 @@ export default function WiringScreen() {
 
   const wiringConfig: SystemConfig | null = buildSpec ? {
     batteryAh: buildSpec.recommendedBankAh,
+    // Map inverterSize (0|1000|2000|3000) so the schematic picks the same
+    // MultiPlus the cart does. Previously the 1000 bucket mapped to 800 here,
+    // which meant cart and schematic disagreed for low-load builds.
     inverterVA: (needs240v
-      ? (buildSpec.inverterSize === 1000 ? 800 : buildSpec.inverterSize === 2000 ? 2000 : buildSpec.inverterSize === 3000 ? 3000 : 0)
+      ? (buildSpec.inverterSize === 1000 ? 1600 : buildSpec.inverterSize === 2000 ? 2000 : buildSpec.inverterSize === 3000 ? 3000 : 0)
       : 0) as SystemConfig['inverterVA'],
     solarWatts: (buildSpec.recommendedSolarW <= 200 ? 200 : buildSpec.recommendedSolarW <= 400 ? 400 : 600) as SystemConfig['solarWatts'],
     dcDcAmps: (effectiveDcDc <= 18 ? 18 : effectiveDcDc <= 30 ? 30 : 50) as SystemConfig['dcDcAmps'],
@@ -514,6 +518,9 @@ export default function WiringScreen() {
   const reviewBypass = FEATURE_FLAGS.SCHEMATICS_REVIEW_BYPASS;
   const installUnlocked = reviewBypass || hasEntitlement('electrical_install_guide');
   const salesSuiteUnlocked = reviewBypass || hasEntitlement('sales_suite_access');
+  // Paywall: the schematic tab is replaced with a purchase-prompt screen until
+  // the user has bought any electrical product (granted by Stripe webhook).
+  const schematicUnlocked = reviewBypass || hasEntitlement('electrical_schematic_access');
 
   const previewHTML = useMemo(() => {
     if (!wiringSpec || !wiringConfig) return null;
@@ -827,19 +834,35 @@ export default function WiringScreen() {
             />
 
             <View style={{ marginTop: 16 }}>
-              {tab === 'schematic' && (
+              {tab === 'schematic' && !schematicUnlocked && (
+                <SchematicPaywall showSecondaryAction={false} />
+              )}
+              {tab === 'schematic' && schematicUnlocked && (
                 <>
                   {/* Preview thumbnail */}
                   <GlassCard style={s.schematicPreviewCard} noPadding>
                     <View style={s.schematicPreviewInner}>
                       <View style={{ width: SCREEN_W - 48, height: (SCREEN_W - 48) * (842 / 1190), overflow: 'hidden', borderRadius: 8 }}>
                         {previewHTML ? (
-                          <WebView
-                            source={{ html: previewHTML }}
-                            scrollEnabled={false}
-                            scalesPageToFit
-                            style={{ flex: 1, backgroundColor: '#F8F9FA' }}
-                          />
+                          Platform.OS === 'web' ? (
+                            // react-native-webview does not support web. Use an
+                            // iframe (the native browser equivalent) so the preview
+                            // renders identically to native. pointer-events: none
+                            // lets the overlay TouchableOpacity capture taps.
+                            <iframe
+                              srcDoc={previewHTML}
+                              scrolling="no"
+                              style={{ width: '100%', height: '100%', border: 'none', background: '#F8F9FA', pointerEvents: 'none' } as any}
+                              title="Schematic preview"
+                            />
+                          ) : (
+                            <WebView
+                              source={{ html: previewHTML }}
+                              scrollEnabled={false}
+                              scalesPageToFit
+                              style={{ flex: 1, backgroundColor: '#F8F9FA' }}
+                            />
+                          )
                         ) : null}
                       </View>
                     </View>

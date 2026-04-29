@@ -84,6 +84,26 @@ function dedupeStrings(input: string[]): string[] {
   return Array.from(new Set(input.filter(Boolean)));
 }
 
+// Product ID prefixes / fragments that identify NON-electrical purchases.
+// Anything else is treated as an electrical purchase for the purposes of
+// granting electrical_schematic_access. Keep this list in sync with the
+// catalog: insulation products live under dodo_/insulat/ins_ prefixes,
+// water products live under water_/wp_/plumb prefixes.
+const NON_ELECTRICAL_ID_FRAGMENTS = [
+  'dodo_',
+  'insulat',
+  'ins_',
+  'water_',
+  'wp_',
+  'plumb',
+];
+
+function isElectricalProductId(productIdLower: string): boolean {
+  return !NON_ELECTRICAL_ID_FRAGMENTS.some((fragment) =>
+    productIdLower.includes(fragment),
+  );
+}
+
 function inferEntitlements(productIds: string[]): string[] {
   const idsLower = productIds.map((id) => id.toLowerCase());
   const out: string[] = [];
@@ -101,6 +121,13 @@ function inferEntitlements(productIds: string[]): string[] {
     )
   ) {
     out.push('electrical_install_guide');
+  }
+  // ANY electrical product purchase unlocks the schematic for this user.
+  // Customer-facing copy does not advertise that even small purchases qualify;
+  // the messaging says "purchase your bespoke electrical package or part
+  // package" so customers do not learn they can game it with low-value items.
+  if (idsLower.some(isElectricalProductId)) {
+    out.push('electrical_schematic_access');
   }
   return dedupeStrings(out);
 }

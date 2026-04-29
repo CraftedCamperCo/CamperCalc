@@ -4,12 +4,14 @@
  * directions with crisp quality at any zoom level (vector SVG, not bitmap).
  * PDF export produces the same schematic + spec sheets with Victron product images.
  */
+import SchematicPaywall from '@/components/SchematicPaywall';
 import TopographicBackground from '@/components/TopographicBackground';
 import { generateSchematicWebviewHTML } from '@/utils/schematicWebview';
 import { generateSchematicPDFHTML } from '@/utils/schematicPDF';
 import { loadImageBase64Map } from '@/utils/imageBase64';
 import { goBackOrHome } from '@/utils/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useEntitlements } from '@/context/EntitlementsContext';
 import { useProjects } from '@/context/ProjectContext';
 import { useTheme } from '@/context/ThemeContext';
 import { calculate } from '@/utils/calculator';
@@ -39,6 +41,34 @@ function getCustomerFirstName(user: any) {
 }
 
 export default function SchematicDetailScreen() {
+  // Paywall gate. Run only the entitlement hooks at this top level so we can
+  // early-return without violating Rules of Hooks, then mount the full screen
+  // (with its many useState/useMemo/useEffect hooks) only when entitled.
+  const theme = useTheme();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { has: hasEntitlement, loading: entitlementsLoading } = useEntitlements();
+
+  const canViewSchematic = hasEntitlement('electrical_schematic_access');
+  if (!entitlementsLoading && !canViewSchematic) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <TopographicBackground />
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => goBackOrHome(router)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} activeOpacity={0.7}>
+            <FontAwesome name="chevron-left" size={14} color={theme.accent} />
+            <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700' }}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <SchematicPaywall />
+      </View>
+    );
+  }
+
+  return <SchematicDetailScreenInner />;
+}
+
+function SchematicDetailScreenInner() {
   const theme = useTheme();
   const { user, updateProfile } = useAuth();
   const router = useRouter();
@@ -77,8 +107,14 @@ export default function SchematicDetailScreen() {
 
   const wiringConfig: SystemConfig | null = buildSpec ? {
     batteryAh: buildSpec.recommendedBankAh,
+    // Map inverterSize (0|1000|2000|3000) to inverterVA in the same way
+    // CartContext picks the inverter model, so the schematic and the cart
+    // always agree on which MultiPlus belongs in the build:
+    //   inverterSize 1000 -> mp_1600 (cart picks ≤1600)
+    //   inverterSize 2000 -> mp_2000
+    //   inverterSize 3000 -> mp_3000
     inverterVA: needs240v
-      ? (buildSpec.inverterSize <= 1000 ? 800 : buildSpec.inverterSize <= 2000 ? 2000 : 3000)
+      ? (buildSpec.inverterSize === 1000 ? 1600 : buildSpec.inverterSize === 2000 ? 2000 : buildSpec.inverterSize === 3000 ? 3000 : 0)
       : 0,
     solarWatts: buildSpec.recommendedSolarW <= 200 ? 200 : buildSpec.recommendedSolarW <= 400 ? 400 : 600,
     dcDcAmps: buildSpec.dcDcChargerSize <= 18 ? 18 : buildSpec.dcDcChargerSize <= 30 ? 30 : 50,

@@ -22,10 +22,11 @@ export default function BasketScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { currentProject } = useProjects();
-  const { items, total, count, addItem, removeItem, updateQty, clearCart } = useCart();
+  const { items, total, count, addItem, removeItem, updateQty, clearCart, syncElectricalToSpec } = useCart();
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [recentlyRemoved, setRecentlyRemoved] = useState<{ product: (typeof items)[number]['product']; quantity: number } | null>(null);
+  const [autoSyncedToast, setAutoSyncedToast] = useState(false);
 
   useEffect(() => {
     trackBasketViewed(count, total);
@@ -37,9 +38,33 @@ export default function BasketScreen() {
     return () => clearTimeout(timer);
   }, [recentlyRemoved]);
 
+  useEffect(() => {
+    if (!autoSyncedToast) return;
+    const timer = setTimeout(() => setAutoSyncedToast(false), 5000);
+    return () => clearTimeout(timer);
+  }, [autoSyncedToast]);
+
   const buildSpec = currentProject?.camper_state && (currentProject.camper_state as any).usage
     ? calculate(currentProject.camper_state as any)
     : null;
+
+  // Refresh the cart's electrical items to match the current build spec on
+  // mount. This catches the case where a user added items, then changed their
+  // appliance list (which moves the recommendation), then opened the basket.
+  // Only runs once per project change to avoid loops.
+  const lastSyncedProjectRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!buildSpec || !currentProject?.id) return;
+    if (lastSyncedProjectRef.current === currentProject.id) return;
+    lastSyncedProjectRef.current = currentProject.id;
+    const result = syncElectricalToSpec({
+      recommendedBankAh: buildSpec.recommendedBankAh,
+      recommendedSolarW: buildSpec.recommendedSolarW,
+      inverterSize: buildSpec.inverterSize,
+      dcDcChargerSize: buildSpec.dcDcChargerSize,
+    });
+    if (result.changed) setAutoSyncedToast(true);
+  }, [currentProject?.id, buildSpec, syncElectricalToSpec]);
 
   const derived = useMemo(() => {
     const insulationOnly = items.length > 0 && items.every((item) => item.product.id.startsWith('ins_'));
@@ -159,6 +184,15 @@ export default function BasketScreen() {
 
         <Text style={[s.heading, { color: theme.text }]}>Your Basket</Text>
 
+        {autoSyncedToast && (
+          <View style={[s.toast, { borderColor: `${theme.accent}55`, backgroundColor: `${theme.accent}12` }]}>
+            <FontAwesome name="refresh" size={12} color={theme.accent} />
+            <Text style={[s.toastText, { color: theme.accent }]}>
+              Your basket was updated to match your current build.
+            </Text>
+          </View>
+        )}
+
         <GlassCard style={[s.summary, { borderColor: `${theme.accent}40`, borderWidth: 1 }]}>
           <Text style={[s.summaryTitle, { color: theme.text }]}>{count} item{count === 1 ? '' : 's'} · £{total.toLocaleString()}</Text>
           <Text style={[s.summarySub, { color: theme.textSecondary }]}>Estimated saving vs individual purchases: ~£{derived.poundsSaved}</Text>
@@ -233,6 +267,17 @@ const s = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
   backText: { fontSize: 14, fontWeight: '600' },
   heading: { fontSize: 30, fontWeight: '800', marginBottom: 14 },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  toastText: { fontSize: 12, fontWeight: '700', flex: 1 },
   summary: { marginBottom: 14 },
   summaryTitle: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
   summarySub: { fontSize: 12, lineHeight: 18 },

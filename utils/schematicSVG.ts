@@ -1107,12 +1107,13 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     overridePort('pv_disconnect', 'pv_out_positive', 'bottom', POS.pv_disconnect.cx, POS.pv_disconnect.cy, DIM.pv_disconnect.w, DIM.pv_disconnect.h);
   }
 
-  // --- DC-DC Isolator + DC-DC Charger + Starter Battery ---
+  // --- DC-DC Charger + Starter Battery ---
+  // The Orion-Tr Smart DC-DC handles its own isolation internally, so no
+  // external isolator is needed in the starter-to-DC-DC path. Previously a
+  // phantom dcdc_isolator was drawn here (visually between the starter battery
+  // and the DC-DC) but never wired, which confused customers and undermined
+  // the schematic's value as a paid output.
   if (hasDC && dcdcC) {
-    svg += placeComponent('dcdc_isolator', 'isolator', POS.dcdc_isolator.cx, POS.dcdc_isolator.cy, DIM.dcdc_isolator.w, DIM.dcdc_isolator.h);
-    overridePort('dcdc_isolator', 'in_positive', 'bottom', POS.dcdc_isolator.cx, POS.dcdc_isolator.cy, DIM.dcdc_isolator.w, DIM.dcdc_isolator.h);
-    overridePort('dcdc_isolator', 'out_positive', 'top', POS.dcdc_isolator.cx, POS.dcdc_isolator.cy, DIM.dcdc_isolator.w, DIM.dcdc_isolator.h);
-
     svg += placeComponent('dcdc', 'orion', POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h, { model: dcdcC.product.model }, dcdcC.product.model);
     overridePort('dcdc', 'in_positive', 'top', POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h, -DIM.orion.w * 0.15);
     overridePort('dcdc', 'in_negative', 'left', POS.dcdc.cx, POS.dcdc.cy, DIM.orion.w, DIM.orion.h);
@@ -1309,9 +1310,9 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     'distribution:fuse_out_1→mppt:bat_positive': 'direct',
     'distribution:neg_out_1→mppt:bat_negative': 'direct',
 
-    // ── DC-DC PATH (starter → PV isolator → DC-DC → Lynx) ──
-    'starter_battery:positive_terminal→pv_disconnect:pv_in_positive': 'direct',
-    'starter_battery:negative_terminal→dcdc:in_negative': 'direct',
+    // ── DC-DC PATH (starter → DC-DC → Lynx; DC-DC handles isolation) ──
+    'starter_battery:positive_terminal→dcdc:in_positive': 'auto',
+    'starter_battery:negative_terminal→dcdc:in_negative': 'auto',
     'dcdc:out_positive→distribution:fuse_out_2': 'direct',
     'dcdc:out_negative→distribution:neg_out_2': 'direct',
 
@@ -1531,21 +1532,16 @@ export function generateSchematicSVG(spec: WiringSpec, config: SystemConfig, ima
     }
   }
 
-  // ── DC-DC PATH: Starter → PV disconnect → DC-DC → Lynx (fuse2/neg2 top) ──
+  // ── DC-DC PATH: Starter → DC-DC → Lynx (fuse2/neg2 top) ──
+  // The Orion-Tr Smart isolates internally; no external isolator in this path.
   if (hasDC && dcdcC) {
     const dcdcGaugeOut: WireGauge = doG >= 16 ? '16' : doG >= 10 ? '10' : '6';
     const dcdcGaugeIn: WireGauge = diG >= 16 ? '16' : diG >= 10 ? '10' : '6';
-    // Starter + → PV disconnect (isolator for DC-DC path)
+    // Starter + → DC-DC in+ (auto-route to avoid the solar panel obstacle)
     svg += drawRuleWire({
       fromId: 'starter_battery', fromPort: 'positive_terminal',
-      toId: 'pv_disconnect', toPort: 'pv_in_positive',
-      netClass: 'dc_lo', hint: 'direct', overrideGauge: dcdcGaugeIn,
-    });
-    // PV disconnect → DC-DC in+
-    svg += drawRuleWire({
-      fromId: 'pv_disconnect', fromPort: 'pv_out_positive',
       toId: 'dcdc', toPort: 'in_positive',
-      netClass: 'dc_lo', hint: 'direct', overrideGauge: dcdcGaugeIn,
+      netClass: 'dc_lo', hint: 'auto', overrideGauge: dcdcGaugeIn,
     });
     // Starter - → DC-DC in-
     svg += drawRuleWire({

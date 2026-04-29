@@ -5,6 +5,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 export type Entitlement =
   | 'sales_suite_access'
   | 'electrical_install_guide'
+  | 'electrical_schematic_access'
   | 'insulation_install_guide'
   | 'water_install_guide'
   | 'club_all_access';

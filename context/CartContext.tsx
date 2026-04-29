@@ -37,6 +37,14 @@ interface CartContextType {
     inverterSize: number;
     dcDcChargerSize: number;
   }, tier?: BuildTier) => void;
+  /**
+   * Refresh the electrical items in the cart so they match the current
+   * recommendation (driven by buildSpec). Used to keep the cart in sync after
+   * the user changes their appliance list, since the schematic recomputes
+   * live but the cart was previously frozen at the moment items were added.
+   * Returns { changed: true } when any swap actually happened.
+   */
+  syncElectricalToSpec: (buildSpec: CartBuildSpecInput, tier?: BuildTier) => { changed: boolean };
   count: number;
   total: number;
   updatedAt: number | null;
@@ -46,8 +54,28 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType>({
   items: [], addItem: () => {}, removeItem: () => {}, updateQty: () => {},
-  addProductsByIds: () => 0, clearCart: () => {}, addInsulationBundle: () => {}, addRecommended: () => {}, count: 0, total: 0, updatedAt: null, getMissingBundlePrompts: () => [], getMissingBundleActions: () => [],
+  addProductsByIds: () => 0, clearCart: () => {}, addInsulationBundle: () => {}, addRecommended: () => {},
+  syncElectricalToSpec: () => ({ changed: false }),
+  count: 0, total: 0, updatedAt: null, getMissingBundlePrompts: () => [], getMissingBundleActions: () => [],
 });
+
+// Product ID prefixes that the recommendation engine controls. Any cart
+// item whose id starts with one of these belongs to the engine, so it can
+// be safely replaced when the appliance list changes. Anything else (manual
+// adds, accessories, insulation, water) is left alone.
+const RECOMMENDED_ELECTRICAL_PREFIXES = [
+  'fogstar_', 'eco_',          // batteries
+  'mp_', 'phx_',               // inverters / inverter-chargers
+  'mppt_', 'bluesolar_',       // solar chargers
+  'orion_',                    // dc-dc
+  'smartshunt_',               // monitor
+  'bp_',                       // battery protect
+  'lynx_', 'fuse_block_',      // distribution
+];
+function isRecommendedElectricalId(id: string): boolean {
+  const lower = id.toLowerCase();
+  return RECOMMENDED_ELECTRICAL_PREFIXES.some((prefix) => lower.startsWith(prefix));
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -293,6 +321,52 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, [persistMeta, resolveRecommendedIds, syncBespokeWiringKit]);
 
+  // Diff the cart's recommendation-controlled electrical items against the
+  // current build spec and replace them with the new recommendation. Only
+  // items whose id starts with a known recommendation prefix are touched;
+  // manually added items and non-electrical categories are left alone.
+  const syncElectricalToSpec = useCallback(
+    (buildSpec: CartBuildSpecInput, tier: BuildTier = 'premium') => {
+      const recommendedIds = resolveRecommendedIds(buildSpec, tier);
+      const recommendedSet = new Set(recommendedIds);
+      let changed = false;
+
+      setItems(prev => {
+        // Cart items the recommendation engine no longer wants.
+        const stale = prev.filter(
+          (item) => isRecommendedElectricalId(item.product.id) && !recommendedSet.has(item.product.id),
+        );
+        // Recommended items that the cart does not yet have.
+        const existingIds = new Set(prev.map((i) => i.product.id));
+        const missing = recommendedIds.filter((id) => !existingIds.has(id));
+
+        if (stale.length === 0 && missing.length === 0) {
+          return prev; // nothing to do
+        }
+        changed = true;
+
+        // Drop stale electricals, keep everything else (insulation, accessories,
+        // manual adds, current recommendations that still match).
+        let next = prev.filter(
+          (item) => !(isRecommendedElectricalId(item.product.id) && !recommendedSet.has(item.product.id)),
+        );
+
+        for (const id of missing) {
+          const product = VICTRON_CATALOG_BY_ID[id];
+          if (!product) continue;
+          next = [...next, { product, quantity: 1 }];
+        }
+
+        const synced = syncBespokeWiringKit(next);
+        persistMeta(synced);
+        return synced;
+      });
+
+      return { changed };
+    },
+    [persistMeta, resolveRecommendedIds, syncBespokeWiringKit],
+  );
+
   const getMissingBundlePrompts = useCallback(() => {
     const ids = new Set(items.map((i) => i.product.id));
     const prompts: string[] = [];
@@ -376,7 +450,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const total = useMemo(() => items.reduce((s, i) => s + i.product.estimatedPrice * i.quantity, 0), [items]);
 
   return (
-    <CartContext.Provider value={{ items, addItem, addProductsByIds, removeItem, updateQty, clearCart, addInsulationBundle, addRecommended, count, total, updatedAt, getMissingBundlePrompts, getMissingBundleActions }}>
+    <CartContext.Provider value={{ items, addItem, addProductsByIds, removeItem, updateQty, clearCart, addInsulationBundle, addRecommended, syncElectricalToSpec, count, total, updatedAt, getMissingBundlePrompts, getMissingBundleActions }}>
       {children}
     </CartContext.Provider>
   );
