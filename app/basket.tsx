@@ -13,7 +13,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BasketScreen() {
@@ -84,12 +84,21 @@ export default function BasketScreen() {
     setCheckoutError('');
     setCheckingOut(true);
     trackBeginCheckout(count, total);
+
+    // On web, send Stripe back to the running web app (current origin) so the
+    // user is returned to the same domain after payment. On native, the existing
+    // camperplan.com pages handle the deep link back into the iOS app.
+    const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
+    const webOrigin = isWeb ? window.location.origin : '';
+    const successUrl = isWeb ? `${webOrigin}/checkout-success` : 'https://camperplan.com/checkout-success';
+    const cancelUrl = isWeb ? `${webOrigin}/checkout-cancel` : 'https://camperplan.com/checkout-cancel';
+
     const { url, error } = await startCheckoutSession({
       userId: user?.id,
       email: user?.email,
       projectId: currentProject?.id,
-      successUrl: 'https://camperplan.com/checkout-success',
-      cancelUrl: 'https://camperplan.com/checkout-cancel',
+      successUrl,
+      cancelUrl,
       lineItems: items.map((i) => ({
         product_id: i.product.id,
         name: i.product.name,
@@ -104,6 +113,15 @@ export default function BasketScreen() {
       trackCheckoutError(msg);
       return;
     }
+
+    if (isWeb) {
+      // Web browsers redirect directly to Stripe Checkout. The in-app WebView
+      // route is only used on native, where there is no parent browser to host
+      // the redirect.
+      window.location.href = url;
+      return;
+    }
+
     router.push({ pathname: '/checkout-web', params: { url } });
   }
 

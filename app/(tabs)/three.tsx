@@ -20,7 +20,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { Alert, Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const WIRING_KIT_ID = 'wiring_kit_bespoke';
 
@@ -152,8 +152,6 @@ export default function YourBuildScreen() {
   async function handleExportPDF(method: 'share' | 'email') {
     setExporting(true);
     try {
-      const Print = await import('expo-print');
-      const Sharing = await import('expo-sharing');
       const sections = {
         camperProfile: true,
         insulation: true,
@@ -163,6 +161,22 @@ export default function YourBuildScreen() {
       };
       const projectName = currentProject?.name ?? 'My Build';
       const html = generateBuildHTML(state, sections, projectName);
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        // Web: open the build summary in a new tab and trigger the browser's
+        // print dialog. The user can save as PDF or email the printout.
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 500);
+        }
+        return;
+      }
+
+      const Print = await import('expo-print');
+      const Sharing = await import('expo-sharing');
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const subject = `CamperPlan by Crafted — ${projectName} Build Summary`;
 
@@ -280,6 +294,15 @@ export default function YourBuildScreen() {
   };
 
   async function handleShareCard() {
+    if (Platform.OS === 'web') {
+      // View capture and native share sheets are not available on web.
+      // Web users can use the PDF export instead, which is web compatible.
+      Alert.alert(
+        'Share via PDF',
+        'On web, please use the "Export PDF" option to save or share your build summary.',
+      );
+      return;
+    }
     try {
       if (!shareShotRef.current) return;
       tapHaptic();

@@ -1,6 +1,7 @@
 import type { SupplierProduct } from './supplierCatalog';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
 
 export interface InvoiceCustomer {
   name: string;
@@ -157,11 +158,29 @@ export async function generateInvoice(
   const data: InvoiceData = { customer, items, totalRRP, totalCrafted, savings, hasCraftedDiscount, reference, date };
   const html = buildHtml(data);
 
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    // Web: open the invoice HTML in a new tab and trigger the browser's
+    // print dialog so the user can Save as PDF or print the invoice.
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 500);
+    }
+    return { uri: '', data };
+  }
+
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   return { uri, data };
 }
 
 export async function shareInvoice(uri: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    // The web invoice flow already shows the print dialog inside generateInvoice,
+    // so there is nothing further to share here.
+    return;
+  }
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',

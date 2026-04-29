@@ -4,7 +4,7 @@
  * Loads the GLB model via the asset URI passed from React Native.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -23,7 +23,24 @@ const COUNTERTOP_HEX: Record<CountertopOption, string> = {
   'white-laminate': '#F0EDE6',
 };
 
-export default function FurnitureViewer3D({
+export default function FurnitureViewer3D(props: FurnitureViewer3DProps) {
+  // The 3D viewer renders inside a WebView with a Three.js scene loaded from a
+  // local GLB asset via expo-file-system. Neither WebView nor expo-file-system
+  // are supported on web, so we render an "iOS only for now" placeholder there.
+  // We branch BEFORE any hooks to avoid hook-order violations.
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.container, props.style, { alignItems: 'center', justifyContent: 'center', padding: 20 }]}>
+        <Text style={{ color: '#666', textAlign: 'center', fontSize: 13, lineHeight: 18 }}>
+          Interactive 3D preview is available in the iOS app. The web version of CamperPlan supports the full configurator and ordering flow.
+        </Text>
+      </View>
+    );
+  }
+  return <FurnitureViewer3DNative {...props} />;
+}
+
+function FurnitureViewer3DNative({
   cabinetHex,
   countertop,
   sinkCutout,

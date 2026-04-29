@@ -111,6 +111,20 @@ export default function SchematicDetailScreen() {
     setExporting(true);
     try {
       const html = generateSchematicPDFHTML(wiringSpec, wiringConfig, projectName, imageMap);
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        // Web: use the browser's print dialog. The user can save as PDF or email
+        // the printout via their OS share sheet.
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 500);
+        }
+        return;
+      }
+
       const { uri } = await Print.printToFileAsync({ html, base64: false, width: 842, height: 595 });
       const subject = 'CamperPlan by Crafted — ' + projectName + ' Wiring Schematic';
       if (method === 'share') {

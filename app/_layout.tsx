@@ -15,7 +15,7 @@ import * as Linking from 'expo-linking';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Image, Platform, StyleSheet, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 initialiseSentry();
@@ -83,17 +83,19 @@ function OrbitalSplash({ onDone }: { onDone: () => void }) {
   return (
     <Animated.View style={[styles.splash, { backgroundColor: '#F8F9FA', opacity: screenOpacity }]}>
       <Animated.View style={{ transform: [{ scale: contentScale }], alignItems: 'center', gap: 28 }}>
-        <Animated.View style={[styles.videoCard, { opacity: brandOpacity, transform: [{ scale: cardScale }] }]}>
-          <Video
-            source={require('../assets/videos/intro.mp4')}
-            style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay
-            isLooping={false}
-            isMuted
-            useNativeControls={false}
-          />
-        </Animated.View>
+        {Platform.OS !== 'web' && (
+          <Animated.View style={[styles.videoCard, { opacity: brandOpacity, transform: [{ scale: cardScale }] }]}>
+            <Video
+              source={require('../assets/videos/intro.mp4')}
+              style={styles.video}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              isLooping={false}
+              isMuted
+              useNativeControls={false}
+            />
+          </Animated.View>
+        )}
         <Animated.View style={{ opacity: logoOpacity, alignItems: 'center' }}>
           <Image source={require('../assets/images/crafted-logo.png')} style={styles.logoImage} resizeMode="contain" />
         </Animated.View>

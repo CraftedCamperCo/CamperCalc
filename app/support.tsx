@@ -18,6 +18,17 @@ export default function SupportScreen() {
   const { currentProject } = useProjects();
 
   const emailSupport = async () => {
+    const subject = 'CamperPlan Support Request';
+    const body = 'Hi Crafted team,\n\nI need help with:\n\nOrder number (if relevant):\nProject name:\nIssue details:\n\nThanks,';
+
+    if (Platform.OS === 'web') {
+      // Browser mailto handoff. Most users have a default mail app or Gmail/Outlook web link handler.
+      if (typeof window !== 'undefined') {
+        window.location.href = `mailto:dan@craftedcamper.co?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
+      return;
+    }
+
     try {
       const available = await MailComposer.isAvailableAsync();
       if (!available) {
@@ -26,8 +37,8 @@ export default function SupportScreen() {
       }
       await MailComposer.composeAsync({
         recipients: ['dan@craftedcamper.co'],
-        subject: 'CamperPlan Support Request',
-        body: 'Hi Crafted team,\n\nI need help with:\n\nOrder number (if relevant):\nProject name:\nIssue details:\n\nThanks,',
+        subject,
+        body,
       });
     } catch {
       Alert.alert('Support', 'Please email dan@craftedcamper.co');

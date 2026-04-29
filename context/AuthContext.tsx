@@ -2,6 +2,7 @@ import { clearUser, identifyUser } from '@/utils/analytics';
 import { supabase } from '@/utils/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 interface AuthState {
   user: User | null;
@@ -105,9 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const forgotPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://camperplan.com/reset-password.html',
-    });
+    // On web, redirect back to the running web app so Supabase can hand off the recovery
+    // session to the in-app /reset-password route. On native, fall back to the hosted
+    // static page which deep-links the user back into the iOS app.
+    const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? `${window.location.origin}/reset-password`
+      : 'https://camperplan.com/reset-password.html';
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) return { error: error.message };
     return {};
   };

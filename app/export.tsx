@@ -66,6 +66,20 @@ export default function ExportScreen() {
     setGenerating(true);
     try {
       const html = generateBuildHTML(state as any, sections, currentProject?.name || 'My Build');
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        // Web: open the generated HTML in a new tab and trigger the browser's
+        // print dialog. The user can then "Save as PDF" via the print dialog.
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 500);
+        }
+        return;
+      }
+
       const { uri } = await Print.printToFileAsync({ html, base64: false, width: 595, height: 842 });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
     } catch (e: any) {
