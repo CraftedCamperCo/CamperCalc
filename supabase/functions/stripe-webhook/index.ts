@@ -7,6 +7,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 // STRIPE_WEBHOOK_SECRET, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') || '';
+const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
@@ -82,6 +83,52 @@ function safeJsonParse<T>(value: string | undefined, fallback: T): T {
 
 function dedupeStrings(input: string[]): string[] {
   return Array.from(new Set(input.filter(Boolean)));
+}
+
+type WebhookLineItem = {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+};
+
+// Fetch full line items from Stripe via the API. The session payload that
+// arrives in webhooks does NOT include line_items, and our metadata-based
+// workaround drops the cart whenever it exceeds Stripe's 500-char metadata
+// limit (which it does for any non-trivial real-world cart). Calling Stripe
+// directly is the reliable way to get the actual purchased items, names,
+// quantities, and prices for use in the merchant fulfilment email and the
+// customer order confirmation.
+async function fetchSessionLineItems(sessionId: string): Promise<WebhookLineItem[]> {
+  if (!STRIPE_SECRET_KEY) return [];
+  try {
+    const res = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items?limit=100`,
+      { headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` } },
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items = Array.isArray(data?.data) ? data.data : [];
+    return items.map((item: any) => {
+      const qty = Number(item?.quantity) || 1;
+      const amountTotal = Number(item?.amount_total) || 0;
+      const unitPrice = qty > 0 ? amountTotal / 100 / qty : 0;
+      const name =
+        item?.description ||
+        item?.price?.product_data?.name ||
+        item?.price?.nickname ||
+        'Item';
+      return {
+        product_id: item?.price?.product || '',
+        name,
+        quantity: qty,
+        unit_price: unitPrice,
+      };
+    });
+  } catch (e) {
+    console.error('fetchSessionLineItems failed', e);
+    return [];
+  }
 }
 
 // Product ID prefixes / fragments that identify NON-electrical purchases.
@@ -397,12 +444,30 @@ serve(async (req: Request) => {
     .filter(Boolean);
   const productIds = dedupeStrings([...productIdsFromCart, ...productIdsFromCsv]);
   const entitlements = inferEntitlements(productIds);
-  const lineItems = compactCart.map((i) => ({
-    product_id: i.id ?? '',
-    name: i.n ?? '',
-    quantity: Number(i.q) || 1,
-    unit_price: Number(i.p) || 0,
-  }));
+
+  // Pull the actual line items from Stripe so we always have full purchase
+  // detail regardless of whether the cart_compact metadata fit Stripe's
+  // 500-char limit. Fall back to compactCart if Stripe is unreachable.
+  const stripeLineItems = await fetchSessionLineItems(session.id);
+  let lineItems: WebhookLineItem[] = stripeLineItems;
+  if (lineItems.length === 0 && compactCart.length > 0) {
+    lineItems = compactCart.map((i) => ({
+      product_id: i.id ?? '',
+      name: i.n ?? '',
+      quantity: Number(i.q) || 1,
+      unit_price: Number(i.p) || 0,
+    }));
+  }
+  // Stripe's auto-generated product field on price_data line items is not
+  // our catalog product_id. Backfill product_id by matching against the
+  // cart_compact metadata in array order. This is the order the items were
+  // submitted in, so a positional match is safe.
+  if (compactCart.length === lineItems.length) {
+    lineItems = lineItems.map((item, idx) => ({
+      ...item,
+      product_id: compactCart[idx]?.id || item.product_id,
+    }));
+  }
 
   const amountTotal = (Number(session.amount_total) || 0) / 100;
   const orderStatus = session.payment_status === 'paid' ? 'paid' : (session.status ?? 'completed');
