@@ -195,38 +195,54 @@ function AppNavigator() {
   useDeepLinkRecovery();
   usePasswordRecoveryNavigation();
 
+  const stack = (
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: theme.background } }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="auth" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="projects" />
+      <Stack.Screen name="craft" />
+      <Stack.Screen name="export" />
+      <Stack.Screen name="wiring" />
+      <Stack.Screen name="recommendations-explainer" />
+      <Stack.Screen name="schematic-detail" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="shop" />
+      <Stack.Screen name="repository-item" />
+      <Stack.Screen name="basket" />
+      <Stack.Screen name="checkout-web" />
+      <Stack.Screen name="furniture-kit" />
+      <Stack.Screen name="compare" />
+      <Stack.Screen name="club" />
+      <Stack.Screen name="checkout-success" />
+      <Stack.Screen name="checkout-cancel" />
+      <Stack.Screen name="terms" />
+      <Stack.Screen name="privacy" />
+      <Stack.Screen name="returns" />
+      <Stack.Screen name="shipping" />
+      <Stack.Screen name="cookies" />
+      <Stack.Screen name="faq" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="reset-password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="(calc)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  );
+
+  // On web, cap every screen inside a 720px centred column so the app reads
+  // as a single comfortable column on desktop instead of stretching edge-to-
+  // edge. The outer wrapper keeps the theme background full-bleed so the
+  // sides of the column don't look blank. Native (iOS/Android) is unaffected
+  // because device widths are all < 720. Popups and watchers stay outside
+  // the wrapper so they can still anchor to the full window.
   return (
     <>
-      <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: theme.background } }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="auth" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="projects" />
-        <Stack.Screen name="craft" />
-        <Stack.Screen name="export" />
-        <Stack.Screen name="wiring" />
-        <Stack.Screen name="recommendations-explainer" />
-        <Stack.Screen name="schematic-detail" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="shop" />
-        <Stack.Screen name="repository-item" />
-        <Stack.Screen name="basket" />
-        <Stack.Screen name="checkout-web" />
-        <Stack.Screen name="furniture-kit" />
-        <Stack.Screen name="compare" />
-        <Stack.Screen name="club" />
-        <Stack.Screen name="checkout-success" />
-        <Stack.Screen name="checkout-cancel" />
-        <Stack.Screen name="terms" />
-        <Stack.Screen name="privacy" />
-        <Stack.Screen name="returns" />
-        <Stack.Screen name="shipping" />
-        <Stack.Screen name="cookies" />
-        <Stack.Screen name="faq" />
-        <Stack.Screen name="support" />
-        <Stack.Screen name="reset-password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="(calc)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      {Platform.OS === 'web' ? (
+        <View style={[styles.webBackdrop, { backgroundColor: theme.background }]}>
+          <View style={styles.webShell}>{stack}</View>
+        </View>
+      ) : (
+        stack
+      )}
       <CartAbandonmentWatcher />
       <MailingListPopup visible={showPopup} onDismiss={dismissPopup} />
     </>
@@ -263,6 +279,8 @@ export default Sentry.wrap(function RootLayout() {
 });
 
 const styles = StyleSheet.create({
+  webBackdrop: { flex: 1, alignItems: 'center' },
+  webShell: { flex: 1, width: '100%', maxWidth: 720 },
   splash: {
     position: 'absolute',
     top: 0, left: 0,
