@@ -97,6 +97,11 @@ serve(async (req: Request) => {
         mode: 'payment',
         success_url: successUrl,
         cancel_url: cancelUrl,
+        // Show the "Add promotion code" link on the Stripe Checkout page so
+        // customers can paste codes (SUMMERPLAN5, friend & family, etc.)
+        // managed in the Stripe dashboard. Stripe handles validation,
+        // single-use enforcement, and expiry server-side.
+        allow_promotion_codes: 'true',
         ...(userId ? { 'metadata[user_id]': String(userId) } : {}),
         ...(projectId ? { 'metadata[project_id]': String(projectId) } : {}),
         ...(compactCartFits ? { 'metadata[cart_compact]': compactCartJson } : {}),
