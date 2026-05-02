@@ -102,6 +102,13 @@ serve(async (req: Request) => {
         // managed in the Stripe dashboard. Stripe handles validation,
         // single-use enforcement, and expiry server-side.
         allow_promotion_codes: 'true',
+        // Collect a shipping address from the customer at checkout. Required
+        // for physical fulfillment of the wiring kit and components. Limited
+        // to UK addresses since Crafted Camper currently ships UK only.
+        'shipping_address_collection[allowed_countries][]': 'GB',
+        // Capture the customer's phone number too — useful for delivery
+        // coordination on bulky items.
+        phone_number_collection: 'enabled',
         ...(userId ? { 'metadata[user_id]': String(userId) } : {}),
         ...(projectId ? { 'metadata[project_id]': String(projectId) } : {}),
         ...(compactCartFits ? { 'metadata[cart_compact]': compactCartJson } : {}),
