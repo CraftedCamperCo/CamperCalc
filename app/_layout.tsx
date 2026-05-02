@@ -234,7 +234,10 @@ function AppNavigator() {
 }
 
 export default Sentry.wrap(function RootLayout() {
-  const [splashDone, setSplashDone] = useState(false);
+  // Skip the orbital splash screen on web. The intro video is iOS-only branding
+  // and feels heavy/slow when loading the web app in a browser. iOS users still
+  // get the full splash experience.
+  const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
 
   return (
     <AppErrorBoundary>

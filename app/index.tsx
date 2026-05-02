@@ -336,7 +336,16 @@ export default function HomeHub() {
 const s = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 28 },
+  // Cap the content width so the homepage does not stretch infinitely on
+  // desktop. 720 is a comfortable reading-width for a single-column layout.
+  // On a phone (≈390 wide) this is a no-op because device width < 720.
+  // alignSelf centres the column on wider browsers.
+  content: {
+    paddingHorizontal: 28,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
 
   hero: { alignItems: 'center', marginBottom: 52 },
   logo: { width: 140, height: 50, marginBottom: 32 },

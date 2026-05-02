@@ -2,8 +2,9 @@ import GlassCard from '@/components/GlassCard';
 import TopographicBackground from '@/components/TopographicBackground';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -31,6 +32,34 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [done, setDone] = useState(false);
+
+  // Web only: when Supabase redirects the user back to /reset-password the
+  // recovery tokens land in the URL hash fragment. Our Supabase client has
+  // detectSessionInUrl disabled (so the iOS deep-link path can manage its own
+  // session), which means we need to extract the tokens manually here on web
+  // and hand them to Supabase. Once setSession runs, AuthContext fires
+  // PASSWORD_RECOVERY and the user can set a new password.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const paramString = hash.startsWith('#')
+      ? hash.slice(1)
+      : search.startsWith('?') ? search.slice(1) : '';
+    if (!paramString.includes('type=recovery')) return;
+    const params = new URLSearchParams(paramString);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (accessToken && refreshToken) {
+      supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .catch(() => {});
+      // Strip the tokens from the URL so a refresh does not re-trigger the flow.
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {}
+    }
+  }, []);
 
   const placeholderColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)';
   const inputStyle = [styles.input, {

@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Supabase CLI local cache (recreated on every run)
+supabase/.temp/
+
 # Native
 .kotlin/
 *.orig.*
