@@ -1,0 +1,19 @@
+# Supabase project configuration. Per-function overrides live here so
+# CLI deploys do not need to remember flags. The stripe-webhook function
+# is hit by Stripe directly with no JWT, so JWT verification is disabled
+# for that endpoint. The function still verifies the request via the
+# Stripe-Signature HMAC header inside its own code.
+
+project_id = "alcvgqpduxugaelxjpbz"
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.subscribe-mailing-list]
+verify_jwt = false

@@ -105,10 +105,10 @@ serve(async (req: Request) => {
         // Collect a shipping address from the customer at checkout. Required
         // for physical fulfillment of the wiring kit and components. Limited
         // to UK addresses since Crafted Camper currently ships UK only.
-        'shipping_address_collection[allowed_countries][]': 'GB',
+        'shipping_address_collection[allowed_countries][0]': 'GB',
         // Capture the customer's phone number too — useful for delivery
         // coordination on bulky items.
-        phone_number_collection: 'enabled',
+        'phone_number_collection[enabled]': 'true',
         ...(userId ? { 'metadata[user_id]': String(userId) } : {}),
         ...(projectId ? { 'metadata[project_id]': String(projectId) } : {}),
         ...(compactCartFits ? { 'metadata[cart_compact]': compactCartJson } : {}),
