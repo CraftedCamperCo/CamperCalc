@@ -40,9 +40,10 @@ function getRecommendedElectricalIds(
     recommendedSolarW: number;
     inverterSize: number;
     dcDcChargerSize: number;
+    monitoringChoice: 'smartshunt' | 'puck' | 'cerbo';
   },
 ) {
-  const { recommendedBankAh, recommendedSolarW, inverterSize, dcDcChargerSize } = buildSpec;
+  const { recommendedBankAh, recommendedSolarW, inverterSize, dcDcChargerSize, monitoringChoice } = buildSpec;
   const ids: string[] = [];
   // Launch mode: single bespoke premium recommendation path.
   if (recommendedBankAh <= 105) ids.push('fogstar_105');
@@ -72,7 +73,14 @@ function getRecommendedElectricalIds(
     else ids.push('orion_50');
   }
 
-  ids.push('smartshunt_500', 'bp_65');
+  if (monitoringChoice === 'smartshunt') {
+    ids.push('smartshunt_500');
+  } else if (monitoringChoice === 'cerbo') {
+    ids.push('cerbo_gx', 'gx_touch_50', 'smartshunt_500');
+  } else {
+    ids.push('bmv_712_smart');
+  }
+  ids.push('bp_65');
   ids.push('lynx_dist');
 
   return ids;
@@ -116,7 +124,8 @@ export default function YourBuildScreen() {
     recommendedSolarW: result.recommendedSolarW,
     inverterSize: result.inverterSize,
     dcDcChargerSize: result.dcDcChargerSize,
-  }), [result]);
+    monitoringChoice: state.monitoringChoice,
+  }), [result, state.monitoringChoice]);
 
   const recommendedIds = useMemo(() => getRecommendedElectricalIds(buildSpec), [buildSpec]);
   const recommendedProducts = useMemo(

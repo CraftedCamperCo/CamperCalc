@@ -1,5 +1,5 @@
 import { VICTRON_CATALOG_BY_ID } from '@/data/victronCatalog';
-import type { BuildTier } from '@/context/CamperContext';
+import type { BuildTier, MonitoringChoice } from '@/context/CamperContext';
 import type { VictronProduct } from '@/utils/wiringTypes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -10,6 +10,7 @@ export interface CartBuildSpecInput {
   recommendedSolarW: number;
   inverterSize: number;
   dcDcChargerSize: number;
+  monitoringChoice?: MonitoringChoice;
 }
 export interface MissingBundleAction {
   key: 'electrical' | 'insulation' | 'insulationAccessories';
@@ -69,6 +70,7 @@ const RECOMMENDED_ELECTRICAL_PREFIXES = [
   'mppt_', 'bluesolar_',       // solar chargers
   'orion_',                    // dc-dc
   'smartshunt_',               // monitor
+  'bmv_', 'cerbo_', 'gx_touch_', // monitor variants
   'bp_',                       // battery protect
   'lynx_', 'fuse_block_',      // distribution
 ];
@@ -242,7 +244,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [persistMeta, syncBespokeWiringKit]);
 
   const resolveRecommendedIds = useCallback((buildSpec: CartBuildSpecInput, tier: BuildTier = 'premium') => {
-    const { recommendedBankAh, recommendedSolarW, inverterSize, dcDcChargerSize } = buildSpec;
+    const {
+      recommendedBankAh,
+      recommendedSolarW,
+      inverterSize,
+      dcDcChargerSize,
+      monitoringChoice = 'puck',
+    } = buildSpec;
     const ids: string[] = [];
 
     if (tier === 'budget') {
@@ -295,7 +303,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    ids.push('smartshunt_500', 'bp_65');
+    if (monitoringChoice === 'smartshunt') {
+      ids.push('smartshunt_500');
+    } else if (monitoringChoice === 'cerbo') {
+      ids.push('cerbo_gx', 'gx_touch_50', 'smartshunt_500');
+    } else {
+      // default: "puck" monitor
+      ids.push('bmv_712_smart');
+    }
+    // BatteryProtect remains mandatory regardless of monitor tier.
+    ids.push('bp_65');
     if (tier === 'budget') ids.push('fuse_block_12way');
     else ids.push('lynx_dist');
 
@@ -415,7 +432,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       'mppt_75_15', 'mppt_100_20', 'mppt_100_30', 'mppt_150_35',
       'bluesolar_75_15', 'bluesolar_100_20', 'bluesolar_100_30', 'bluesolar_150_35',
       'orion_18', 'orion_30', 'orion_50', 'orion_18_budget',
-      'smartshunt_500', 'bp_65',
+      'smartshunt_500', 'bmv_712_smart', 'cerbo_gx', 'gx_touch_50', 'bp_65',
     ];
     const hasElectrical = electricalIds.some((id) => ids.has(id));
     const insulationCoreIds = ['ins_sound_deadening', 'ins_floor_thermal', 'ins_floor_and_sound'];

@@ -9,6 +9,7 @@ export type ShowerType = 'indoor' | 'outdoor' | 'none';
 export type ShowerFrequency = 'daily' | 'every2' | 'every3';
 export type InsulationSeason = 'three-season' | 'four-season';
 export type BuildTier = 'budget' | 'premium';
+export type MonitoringChoice = 'smartshunt' | 'puck' | 'cerbo';
 
 export interface WindowPlan {
   slidingDoorWindow: boolean;
@@ -62,6 +63,7 @@ export interface CamperState {
   solarWatts: number;
   driveHours: number;
   dcDcSize: number;
+  monitoringChoice: MonitoringChoice;
   selectedAppliances: Record<string, boolean>;
   applianceHoursOverrides: Record<string, number>;
   customAppliances: CustomAppliance[];
@@ -109,6 +111,7 @@ export const CAMPER_DEFAULTS: CamperState = {
   solarWatts: 0,
   driveHours: 0,
   dcDcSize: 30,
+  monitoringChoice: 'puck',
   selectedAppliances: {},
   applianceHoursOverrides: {},
   customAppliances: [],

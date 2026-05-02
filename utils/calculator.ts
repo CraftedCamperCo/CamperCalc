@@ -94,6 +94,7 @@ export interface BuildSpec {
   recommendedSolarW: number;
   inverterSize: 0 | 1000 | 2000 | 3000;
   dcDcChargerSize: number;
+  monitoringChoice: CamperState['monitoringChoice'];
   dailyLPG: number;
   dailyDiesel: number;
   dieselTankPct: number | null;
@@ -135,6 +136,7 @@ export function calculate(state: CamperState): BuildSpec {
     showerType, showerFrequency,
     cookFuel, heatFuel, waterFuel,
     solarWatts, driveHours, dcDcSize, wantsHookupCharging,
+    monitoringChoice,
     selectedAppliances, applianceHoursOverrides, customAppliances,
   } = state;
 
@@ -249,16 +251,61 @@ export function calculate(state: CamperState): BuildSpec {
   const solarPanelsNeeded = Math.ceil(solarNeeded / 200);
   const recommendedSolarW = solarPanelsNeeded * 200;
 
+  // === Inverter sizing (peak-watts based) ===
+  // Inverters must handle continuous PEAK wattage when any single AC
+  // appliance is running, NOT the average daily Ah. Sizing on Ah was
+  // producing under-spec'd inverters: e.g. a coffee machine at 0.1 hrs/day
+  // only contributes 12.5 Ah/day, but draws 1500W instantaneously and
+  // needs the inverter to handle that peak whenever it is on.
+  //
+  // Logic:
+  //   1. Pick the largest peak wattage among all toggled AC appliances.
+  //      Only one big appliance typically runs at a time on a campervan.
+  //   2. Add an implicit induction hob load when cooking is electric.
+  //   3. Apply 20% safety margin so the inverter is not at 100% rated load.
+  //   4. Map the design watts to a MultiPlus model size.
+  //
+  // The cart at CartContext.tsx maps inverterSize → MultiPlus model:
+  //   ≤  800  → mp_800   (rarely used in campers; not produced here)
+  //   ≤ 1600  → mp_1600  (small AC loads: hair dryer, microwave)
+  //   ≤ 2000  → mp_2000  (medium AC loads: coffee machine, air fryer)
+  //   >  2000 → mp_3000  (induction cooking, multiple high-power loads)
   let inverterSize: 0 | 1000 | 2000 | 3000 = 0;
   if (state.needs240v) {
-    const acLoadAh = APPLIANCES.ac_240v.reduce((sum, app) => {
-      if (!selectedAppliances[app.id]) return sum;
-      const oh = applianceHoursOverrides[app.id];
-      return sum + (oh !== undefined ? (parseInt(app.watts) * oh) / 12 : app.ah);
-    }, 0);
-    if (acLoadAh + custom240v > 150) inverterSize = 3000;
-    else if (acLoadAh + custom240v > 50) inverterSize = 2000;
-    else inverterSize = 1000;
+    let peakWatts = 0;
+
+    // Implicit induction hob when cooking is electric. Induction pulls
+    // 2000 to 3000W on full boost; budget 2500W to keep the inverter from
+    // tripping mid-cook.
+    if (cookFuel === 'Electric') peakWatts = Math.max(peakWatts, 2500);
+
+    // Toggled 240V catalogue appliances. Peak draw applies regardless of
+    // how short the user runs them. A 1500W appliance for 5 minutes still
+    // needs 1500W of inverter headroom.
+    APPLIANCES.ac_240v.forEach((app) => {
+      if (!selectedAppliances[app.id]) return;
+      const watts = parseInt(app.watts);
+      if (Number.isFinite(watts)) peakWatts = Math.max(peakWatts, watts);
+    });
+
+    // Custom 240V appliances declared by the user. Same peak rule.
+    customAppliances.forEach((app) => {
+      if (app.voltage === '240v' && Number.isFinite(app.watts)) {
+        peakWatts = Math.max(peakWatts, app.watts);
+      }
+    });
+
+    // 20% safety margin. Running an inverter at 100% of its continuous
+    // rating is asking for thermal trips; 80% utilisation is the safe ceiling.
+    const designWatts = peakWatts * 1.2;
+
+    // If the user has flagged needs240v but not specified any concrete AC
+    // loads, default to mp_1600 as a sensible minimum so they still get an
+    // inverter in the recommendation. The original logic always set ≥ 1000
+    // when needs240v was true, preserve that behaviour.
+    if (designWatts <= 1600) inverterSize = 1000;      // → mp_1600 (default)
+    else if (designWatts <= 2000) inverterSize = 2000; // → mp_2000
+    else inverterSize = 3000;                          // → mp_3000
   }
 
   const recommendedBattery: BatteryRecommendation = {
@@ -288,6 +335,7 @@ export function calculate(state: CamperState): BuildSpec {
     recommendedSolarW,
     inverterSize,
     dcDcChargerSize: dcDcSize,
+    monitoringChoice,
     dailyLPG: Math.round(dailyLPG * 10) / 10,
     dailyDiesel: Math.round(dailyDiesel * 10) / 10,
     dieselTankPct: (() => {

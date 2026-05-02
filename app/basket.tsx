@@ -16,6 +16,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+function monitorTierLabel(productId: string): string | null {
+  if (productId === 'smartshunt_500') return 'SmartShunt monitor';
+  if (productId === 'bmv_712_smart') return 'Puck monitor';
+  if (productId === 'cerbo_gx' || productId === 'gx_touch_50') return 'Cerbo touchscreen system';
+  return null;
+}
+
 export default function BasketScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -62,6 +69,7 @@ export default function BasketScreen() {
       recommendedSolarW: buildSpec.recommendedSolarW,
       inverterSize: buildSpec.inverterSize,
       dcDcChargerSize: buildSpec.dcDcChargerSize,
+      monitoringChoice: buildSpec.monitoringChoice,
     });
     if (result.changed) setAutoSyncedToast(true);
   }, [currentProject?.id, buildSpec, syncElectricalToSpec]);
@@ -203,6 +211,11 @@ export default function BasketScreen() {
           <GlassCard key={item.product.id} style={s.rowCard}>
             <Text style={[s.itemName, { color: theme.text }]}>{item.product.name}</Text>
             <Text style={[s.itemMeta, { color: theme.textSecondary }]}>£{item.product.estimatedPrice} each</Text>
+            {!!monitorTierLabel(item.product.id) && (
+              <Text style={[s.itemMeta, { color: theme.textSecondary, marginTop: 4 }]}>
+                {monitorTierLabel(item.product.id)}
+              </Text>
+            )}
             {item.product.id === 'wiring_kit_bespoke' && (
               <Text style={[s.itemMeta, { color: theme.textSecondary, marginTop: 4 }]}>
                 Build-matched wiring kit. Looms are pre-cut, pre-crimped, and heat-shrunk to your van model and selected setup.

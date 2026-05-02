@@ -2,7 +2,7 @@ import CollapsibleSection from '@/components/CollapsibleSection';
 import ElectricalDisclaimer from '@/components/ElectricalDisclaimer';
 import GlassCard from '@/components/GlassCard';
 import TopographicBackground from '@/components/TopographicBackground';
-import { FuelType, useCamper } from '@/context/CamperContext';
+import { FuelType, MonitoringChoice, useCamper } from '@/context/CamperContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useScreenSlide } from '@/hooks/useScreenSlide';
 import { APPLIANCES, getDefaultHours } from '@/utils/calculator';
@@ -20,6 +20,7 @@ import {
   TextInput,
   TouchableOpacity,
   UIManager,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -34,6 +35,36 @@ const SOLAR_OPTS = [0, 200, 400, 600];
 const DRIVE_OPTS = [0, 1, 2];
 const DC_APPLIANCE_IDS = new Set(APPLIANCES.dc_12v.map((app) => app.id));
 const AC_APPLIANCE_IDS = new Set(APPLIANCES.ac_240v.map((app) => app.id));
+
+const MONITORING_OPTIONS: Array<{
+  key: MonitoringChoice;
+  title: string;
+  priceLabel: string;
+  description: string;
+  tierLabel: string;
+}> = [
+  {
+    key: 'smartshunt',
+    title: 'SmartShunt',
+    priceLabel: '£65',
+    description: 'App-only monitoring via Bluetooth. Basic and cost-effective.',
+    tierLabel: 'SmartShunt monitor',
+  },
+  {
+    key: 'puck',
+    title: 'Puck Monitor',
+    priceLabel: '£155',
+    description: 'Compact in-van display with state of charge, voltage, current. Includes Bluetooth.',
+    tierLabel: 'Puck monitor',
+  },
+  {
+    key: 'cerbo',
+    title: 'Cerbo Touchscreen',
+    priceLabel: '£565',
+    description: 'Full 5-inch touchscreen system showing every component live. Includes Bluetooth.',
+    tierLabel: 'Cerbo touchscreen system',
+  },
+];
 
 
 function PillSelector({ value, options, onChange, fmt, theme }: {
@@ -157,7 +188,9 @@ export default function YourSystemsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { style: slideStyle, panHandlers } = useScreenSlide(1);
+  const { width } = useWindowDimensions();
   const isDark = theme.blurTint === 'dark';
+  const monitoringWideLayout = width >= 980;
 
   const [customName, setCustomName] = useState('');
   const [customWatts, setCustomWatts] = useState('');
@@ -353,9 +386,56 @@ export default function YourSystemsScreen() {
           <PillSelector value={state.waterFuel} options={WATER_OPTS} onChange={v => set('waterFuel', v)} theme={theme} />
         </GlassCard>
 
-        {/* 4. 12V APPLIANCES */}
+        {/* 4. SYSTEM MONITORING */}
         <GlassCard style={styles.card}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>4. 12V APPLIANCES</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>4. SYSTEM MONITORING</Text>
+          <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>
+            Pick how you want to view your battery and system data in-van.
+          </Text>
+          <View
+            style={[
+              styles.monitoringGrid,
+              monitoringWideLayout ? styles.monitoringGridWide : styles.monitoringGridStacked,
+            ]}
+          >
+            {MONITORING_OPTIONS.map((option) => {
+              const selected = state.monitoringChoice === option.key;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  activeOpacity={0.85}
+                  onPress={() => set('monitoringChoice', option.key)}
+                  style={[
+                    styles.monitoringCard,
+                    {
+                      backgroundColor: selected
+                        ? `${theme.accent}14`
+                        : isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                      borderColor: selected
+                        ? `${theme.accent}CC`
+                        : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                    },
+                    monitoringWideLayout && styles.monitoringCardWide,
+                  ]}
+                >
+                  <View style={styles.monitoringCardTop}>
+                    <Text style={[styles.monitoringTitle, { color: theme.text }]}>{option.title}</Text>
+                    {selected && <FontAwesome name="check-circle" size={16} color={theme.accent} />}
+                  </View>
+                  <Text style={[styles.monitoringPrice, { color: theme.accent }]}>{option.priceLabel}</Text>
+                  <Text style={[styles.monitoringDesc, { color: theme.textSecondary }]}>{option.description}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.monitoringNote, { color: theme.textSecondary }]}>
+            All options include VictronConnect Bluetooth monitoring on your phone, so you can check the system from anywhere in or near the van.
+          </Text>
+        </GlassCard>
+
+        {/* 5. 12V APPLIANCES */}
+        <GlassCard style={styles.card}>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>5. 12V APPLIANCES</Text>
           <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Toggle what you need. These run directly from battery power.</Text>
           <CollapsibleSection
             title="Show 12V appliances"
@@ -367,9 +447,9 @@ export default function YourSystemsScreen() {
           </CollapsibleSection>
         </GlassCard>
 
-        {/* 5. CUSTOM 12V APPLIANCES */}
+        {/* 6. CUSTOM 12V APPLIANCES */}
         <GlassCard style={styles.card}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>5. CUSTOM 12V APPLIANCES</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>6. CUSTOM 12V APPLIANCES</Text>
           <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Add any 12V appliance not listed above. 240V customs are handled in the 240V section.</Text>
           {custom12vApps.map(app => {
             const ah = Math.round((app.watts * app.hoursPerDay) / 12);
@@ -438,6 +518,16 @@ const styles = StyleSheet.create({
   customField: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1 },
   customBtnBase: { paddingVertical: 11, borderRadius: 8, alignItems: 'center' },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, borderRadius: 8, justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', marginTop: 8 },
+  monitoringGrid: { gap: 10 },
+  monitoringGridStacked: { flexDirection: 'column' },
+  monitoringGridWide: { flexDirection: 'row', flexWrap: 'wrap' },
+  monitoringCard: { borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 12 },
+  monitoringCardWide: { flexBasis: '31.5%', minWidth: 220 },
+  monitoringCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
+  monitoringTitle: { fontSize: 14, fontWeight: '800' },
+  monitoringPrice: { fontSize: 20, fontWeight: '900', marginBottom: 6 },
+  monitoringDesc: { fontSize: 12, lineHeight: 17 },
+  monitoringNote: { marginTop: 10, fontSize: 11, lineHeight: 16, fontStyle: 'italic' },
   hoursRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
   hoursLabel: { fontSize: 12, fontWeight: '500', flex: 1 },
   hoursInput: { width: 56, textAlign: 'center', fontSize: 14, fontWeight: '700', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 8, borderWidth: 1 },
