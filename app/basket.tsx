@@ -8,6 +8,7 @@ import { trackBasketViewed, trackBeginCheckout, trackCheckoutError } from '@/uti
 import { startCheckoutSession } from '@/utils/checkout';
 import { calculate } from '@/utils/calculator';
 import { goBackOrHome } from '@/utils/navigation';
+import { buildPendingWiringSpec } from '@/utils/pendingWiringSpec';
 import { calculateValueSaved } from '@/utils/valueSaved';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -126,12 +127,15 @@ export default function BasketScreen() {
     const successUrl = isWeb ? `${webOrigin}/checkout-success` : 'https://camperplan.com/checkout-success';
     const cancelUrl = isWeb ? `${webOrigin}/checkout-cancel` : 'https://camperplan.com/checkout-cancel';
 
+    const camperState = currentProject?.camper_state as any;
+    const pendingWiringSpec = camperState?.usage ? buildPendingWiringSpec(camperState) : null;
     const { url, error } = await startCheckoutSession({
       userId: user?.id,
       email: user?.email,
       projectId: currentProject?.id,
       successUrl,
       cancelUrl,
+      pendingWiringSpec,
       lineItems: items.map((i) => ({
         product_id: i.product.id,
         name: i.product.name,

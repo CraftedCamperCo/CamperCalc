@@ -66,6 +66,7 @@ export interface CamperState {
   monitoringChoice: MonitoringChoice;
   selectedAppliances: Record<string, boolean>;
   applianceHoursOverrides: Record<string, number>;
+  applianceQuantities: Record<string, number>;
   customAppliances: CustomAppliance[];
 
   // Screen — Water
@@ -114,6 +115,7 @@ export const CAMPER_DEFAULTS: CamperState = {
   monitoringChoice: 'puck',
   selectedAppliances: {},
   applianceHoursOverrides: {},
+  applianceQuantities: {},
   customAppliances: [],
   buildTier: 'premium',
   waterEnabled: true,

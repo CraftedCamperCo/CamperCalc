@@ -16,6 +16,7 @@
   ],
   "exclude": [
     "supabase",
-    "wiring-prototype"
+    "wiring-prototype",
+    "utils/BACKUP_FUNDAMENTAL_CHANGE"
   ]
 }

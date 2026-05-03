@@ -14,6 +14,10 @@ export interface StartCheckoutInput {
   successUrl?: string;
   cancelUrl?: string;
   lineItems: CheckoutLineItem[];
+  pendingWiringSpec?: {
+    wiringSpec: Record<string, unknown>;
+    buildSummary: Record<string, unknown>;
+  } | null;
 }
 
 async function extractEdgeErrorMessage(err: any): Promise<string | null> {
@@ -38,7 +42,7 @@ async function extractEdgeErrorMessage(err: any): Promise<string | null> {
   return null;
 }
 
-export async function startCheckoutSession(input: StartCheckoutInput): Promise<{ url?: string; error?: string }> {
+export async function startCheckoutSession(input: StartCheckoutInput): Promise<{ url?: string; id?: string; error?: string }> {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
       method: 'POST',
@@ -71,7 +75,7 @@ export async function startCheckoutSession(input: StartCheckoutInput): Promise<{
     }
 
     if (!payload?.url) return { error: 'No checkout URL returned' };
-    return { url: payload.url };
+    return { url: payload.url, id: payload.id };
   } catch (e: any) {
     const extracted = await extractEdgeErrorMessage(e);
     if (extracted) return { error: extracted };

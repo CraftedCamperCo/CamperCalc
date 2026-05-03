@@ -8,7 +8,7 @@ import { useScreenSlide } from '@/hooks/useScreenSlide';
 import { APPLIANCES, getDefaultHours } from '@/utils/calculator';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   LayoutAnimation,
@@ -35,6 +35,13 @@ const SOLAR_OPTS = [0, 200, 400, 600];
 const DRIVE_OPTS = [0, 1, 2];
 const DC_APPLIANCE_IDS = new Set(APPLIANCES.dc_12v.map((app) => app.id));
 const AC_APPLIANCE_IDS = new Set(APPLIANCES.ac_240v.map((app) => app.id));
+const INDUCTION_IDS = ['ac_induction_1', 'ac_induction_2', 'ac_induction_4'] as const;
+const PARTY_PHONE_DEFAULTS: Record<string, number> = {
+  Solo: 1,
+  Couple: 2,
+  Family: 4,
+  'Group / Friends': 6,
+};
 
 const MONITORING_OPTIONS: Array<{
   key: MonitoringChoice;
@@ -106,10 +113,26 @@ function ApplianceRow({ app, theme, isDark }: { app: { id: string; name: string;
   const overrideHrs = state.applianceHoursOverrides[app.id];
   const displayHrs = overrideHrs !== undefined ? String(overrideHrs) : String(defaultHrs);
   const isFridge = app.id === 'dc_fridge';
+  const isPhone = app.id === 'dc_phone';
+  const isInduction = INDUCTION_IDS.includes(app.id as (typeof INDUCTION_IDS)[number]);
+  const phoneQty = Math.max(1, Math.round(state.applianceQuantities.dc_phone ?? PARTY_PHONE_DEFAULTS[state.party] ?? 1));
 
   const toggle = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    set('selectedAppliances', { ...state.selectedAppliances, [app.id]: !isOn });
+    const nextOn = !isOn;
+    const nextSelected = { ...state.selectedAppliances, [app.id]: nextOn };
+    if (nextOn && isInduction) {
+      for (const inductionId of INDUCTION_IDS) {
+        if (inductionId !== app.id) nextSelected[inductionId] = false;
+      }
+    }
+    set('selectedAppliances', nextSelected);
+    if (isPhone && nextOn && !state.applianceQuantities.dc_phone) {
+      set('applianceQuantities', {
+        ...state.applianceQuantities,
+        dc_phone: PARTY_PHONE_DEFAULTS[state.party] ?? 1,
+      });
+    }
   };
 
   const onHoursChange = (val: string) => {
@@ -131,7 +154,9 @@ function ApplianceRow({ app, theme, isDark }: { app: { id: string; name: string;
   const currentHrs = overrideHrs ?? defaultHrs;
   const watts = parseInt(app.watts);
   const fridgeScale = isFridge ? (state.fridgeLitres ?? 50) / 50 : 1;
-  const currentAh = Math.round((watts * currentHrs * fridgeScale) / 12);
+  const qtyMultiplier = isPhone ? phoneQty : 1;
+  const currentAhRaw = (watts * currentHrs * fridgeScale * qtyMultiplier) / 12;
+  const currentAh = isPhone ? Math.round(currentAhRaw * 10) / 10 : Math.round(currentAhRaw);
   const displayName = isFridge ? `${state.fridgeLitres ?? 50}L Fridge/Freezer` : app.name;
 
   return (
@@ -142,7 +167,32 @@ function ApplianceRow({ app, theme, isDark }: { app: { id: string; name: string;
             <Text style={[styles.toggleLabel, { color: theme.text }]}>{displayName}</Text>
             <Text style={[styles.toggleSub, { color: theme.textSecondary }]}>{app.watts} · {currentAh}Ah/day</Text>
           </View>
-          <Switch value={isOn} onValueChange={toggle} trackColor={{ false: isDark ? '#2C2C2E' : '#D1D1D6', true: theme.success }} thumbColor="#fff" />
+          <View style={styles.toggleControlRow}>
+            {isPhone && isOn && (
+              <View style={styles.inlineQtyWrap}>
+                <Text style={[styles.inlineQtyLabel, { color: theme.textSecondary }]}>Qty</Text>
+                <TextInput
+                  style={[styles.inlineQtyInput, {
+                    color: theme.text,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  }]}
+                  keyboardType="number-pad"
+                  value={String(phoneQty)}
+                  onChangeText={(val) => {
+                    const parsed = parseInt(val);
+                    if (!Number.isFinite(parsed) || parsed < 1) return;
+                    set('applianceQuantities', {
+                      ...state.applianceQuantities,
+                      dc_phone: parsed,
+                    });
+                  }}
+                  selectTextOnFocus
+                />
+              </View>
+            )}
+            <Switch value={isOn} onValueChange={toggle} trackColor={{ false: isDark ? '#2C2C2E' : '#D1D1D6', true: theme.success }} thumbColor="#fff" />
+          </View>
         </View>
         {isOn && (
           <View style={[styles.hoursRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }]}>
@@ -200,6 +250,7 @@ export default function YourSystemsScreen() {
   const [customAcWatts, setCustomAcWatts] = useState('');
   const [customAcHours, setCustomAcHours] = useState('1');
   const [showCustomAcForm, setShowCustomAcForm] = useState(false);
+  const [open240vAppliances, setOpen240vAppliances] = useState(false);
 
   const custom12vApps = useMemo(
     () => state.customAppliances.filter((a) => a.voltage !== '240v'),
@@ -221,6 +272,28 @@ export default function YourSystemsScreen() {
     () => selectedApplianceIds.filter((id) => DC_APPLIANCE_IDS.has(id)).length,
     [selectedApplianceIds],
   );
+
+  useEffect(() => {
+    const needsByFuel = state.cookFuel === 'Electric' || state.heatFuel === 'Electric' || state.waterFuel === 'Electric';
+    if (needsByFuel && !state.needs240v) {
+      set('needs240v', true);
+    }
+  }, [state.cookFuel, state.heatFuel, state.waterFuel, state.needs240v, set]);
+
+  useEffect(() => {
+    if (!state.needs240v) return;
+    setOpen240vAppliances(true);
+  }, [state.needs240v]);
+
+  useEffect(() => {
+    if (state.cookFuel !== 'Electric') return;
+    const hasInduction = INDUCTION_IDS.some((id) => !!state.selectedAppliances[id]);
+    if (hasInduction) return;
+    set('selectedAppliances', {
+      ...state.selectedAppliances,
+      ac_induction_2: true,
+    });
+  }, [state.cookFuel, state.selectedAppliances, set]);
 
   const addCustomAppliance = () => {
     const w = parseFloat(customWatts);
@@ -271,9 +344,29 @@ export default function YourSystemsScreen() {
           )}
         </GlassCard>
 
-        {/* 2. 240V ELECTRICS */}
+        {/* 2. MAJOR SYSTEMS */}
         <GlassCard style={styles.card}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>2. 240V ELECTRICS</Text>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>2. MAJOR SYSTEMS</Text>
+          <CollapsibleSection title="Show major systems" initiallyOpen>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Cooking</Text>
+            <PillSelector value={state.cookFuel} options={COOK_OPTS} onChange={v => set('cookFuel', v)} theme={theme} />
+            <View style={styles.spacer} />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Space Heating</Text>
+            <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Choose your main heating type.</Text>
+            <PillSelector value={state.heatFuel} options={HEAT_OPTS} onChange={v => set('heatFuel', v)} theme={theme} />
+            <CollapsibleSection title="Heating details">
+              <Text style={[styles.accordionHelper, { color: theme.textSecondary }]}>Diesel heaters (Webasto/Autoterm) draw ~12Ah/day for the controller + fan.{'\n'}Gas heaters (Truma) draw similar. Electric-only draws ~150Ah/day — only practical with very large solar.</Text>
+            </CollapsibleSection>
+            <View style={styles.spacer} />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Hot Water</Text>
+            <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Choose your hot water type.</Text>
+            <PillSelector value={state.waterFuel} options={WATER_OPTS} onChange={v => set('waterFuel', v)} theme={theme} />
+          </CollapsibleSection>
+        </GlassCard>
+
+        {/* 3. 240V ELECTRICS */}
+        <GlassCard style={styles.card}>
+          <Text style={[styles.sectionLabel, { color: theme.accent }]}>3. 240V ELECTRICS</Text>
           <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>
             One place for mains setup: 240V, hook-up charging, and appliances.
           </Text>
@@ -326,6 +419,7 @@ export default function YourSystemsScreen() {
               <CollapsibleSection
                 title="Show 240V appliances"
                 badge={`${selectedAcCount} on`}
+                initiallyOpen={open240vAppliances}
               >
                 {APPLIANCES.ac_240v.map(app => (
                   <ApplianceRow key={app.id} app={app} theme={theme} isDark={isDark} />
@@ -366,24 +460,6 @@ export default function YourSystemsScreen() {
               </CollapsibleSection>
             </>
           )}
-        </GlassCard>
-
-        {/* 3. MAJOR SYSTEMS */}
-        <GlassCard style={styles.card}>
-          <Text style={[styles.sectionLabel, { color: theme.accent }]}>3. MAJOR SYSTEMS</Text>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Cooking</Text>
-          <PillSelector value={state.cookFuel} options={COOK_OPTS} onChange={v => set('cookFuel', v)} theme={theme} />
-          <View style={styles.spacer} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Space Heating</Text>
-          <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Choose your main heating type.</Text>
-          <PillSelector value={state.heatFuel} options={HEAT_OPTS} onChange={v => set('heatFuel', v)} theme={theme} />
-          <CollapsibleSection title="Heating details">
-            <Text style={[styles.accordionHelper, { color: theme.textSecondary }]}>Diesel heaters (Webasto/Autoterm) draw ~12Ah/day for the controller + fan.{'\n'}Gas heaters (Truma) draw similar. Electric-only draws ~150Ah/day — only practical with very large solar.</Text>
-          </CollapsibleSection>
-          <View style={styles.spacer} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Hot Water</Text>
-          <Text style={[styles.sectionHelper, { color: theme.textSecondary }]}>Choose your hot water type.</Text>
-          <PillSelector value={state.waterFuel} options={WATER_OPTS} onChange={v => set('waterFuel', v)} theme={theme} />
         </GlassCard>
 
         {/* 4. SYSTEM MONITORING */}
@@ -512,8 +588,21 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 11, fontWeight: '600' },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1 },
   toggleInfo: { flex: 1 },
+  toggleControlRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   toggleLabel: { fontSize: 14, fontWeight: '500' },
   toggleSub: { fontSize: 11, marginTop: 1 },
+  inlineQtyWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  inlineQtyLabel: { fontSize: 11, fontWeight: '600' },
+  inlineQtyInput: {
+    width: 44,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '700',
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
   customInput: { flex: 1.3, borderRadius: 8, paddingHorizontal: 8, fontSize: 11, fontWeight: '600', textAlign: 'center', borderWidth: 1 },
   customField: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1 },
   customBtnBase: { paddingVertical: 11, borderRadius: 8, alignItems: 'center' },

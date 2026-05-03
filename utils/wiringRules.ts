@@ -147,8 +147,9 @@ export function generateWiringSpec(config: SystemConfig): WiringSpec {
     dc_fan: { label: 'Roof Fan', amps: 5 },
     dc_led: { label: 'LED Lighting', amps: 5 },
     dc_usb: { label: 'USB/12V Sockets', amps: 5 },
+    dc_phone: { label: 'Phone Charging', amps: 5 },
+    dc_tv: { label: '12V TV', amps: 5 },
     dc_pump: { label: 'Water Pump', amps: 5 },
-    ac_laptop: { label: 'Laptop Charger', amps: 10 },
     ac_starlink: { label: 'Starlink', amps: 10 },
   };
   const dcAppliances = config.selectedDcAppliances || [];

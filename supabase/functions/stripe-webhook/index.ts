@@ -20,6 +20,31 @@ type StripeSession = {
   status?: string;
   payment_status?: string;
   customer_email?: string;
+  customer_details?: {
+    email?: string;
+    name?: string;
+    phone?: string;
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      postal_code?: string;
+      country?: string;
+    };
+  };
+  shipping_details?: {
+    name?: string;
+    phone?: string;
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      postal_code?: string;
+      country?: string;
+    };
+  };
   amount_total?: number;
   currency?: string;
   client_reference_id?: string;
@@ -83,6 +108,42 @@ function safeJsonParse<T>(value: string | undefined, fallback: T): T {
 
 function dedupeStrings(input: string[]): string[] {
   return Array.from(new Set(input.filter(Boolean)));
+}
+
+function formatMoney(amount: number, currency: string): string {
+  if ((currency ?? 'gbp').toLowerCase() === 'gbp') return `£${amount.toFixed(2)}`;
+  return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
+}
+
+function pad4(value: number): string {
+  return String(value).padStart(4, '0');
+}
+
+function toDisplayDateStamp(date = new Date()): string {
+  const yy = String(date.getUTCFullYear()).slice(-2);
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
+}
+
+function formatAddress(address?: {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+}): string {
+  if (!address) return 'Not provided';
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.state,
+    address.postal_code,
+    address.country,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : 'Not provided';
 }
 
 type WebhookLineItem = {
@@ -179,9 +240,24 @@ function inferEntitlements(productIds: string[]): string[] {
   return dedupeStrings(out);
 }
 
+async function generateDisplayOrderId(supabaseAdmin: ReturnType<typeof createClient>): Promise<string> {
+  const dateStamp = toDisplayDateStamp();
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const suffix = pad4(Math.floor(Math.random() * 10000));
+    const candidate = `CC-${dateStamp}-${suffix}`;
+    const existing = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .eq('display_order_id', candidate)
+      .maybeSingle();
+    if (!existing.data?.id) return candidate;
+  }
+  return `CC-${dateStamp}-${pad4(Math.floor(Math.random() * 10000))}`;
+}
+
 async function sendOrderConfirmationEmail(input: {
   toEmail: string;
-  orderId: string;
+  orderDisplayId: string;
   amountTotal: number;
   currency: string;
   lineItems: Array<{ name: string; quantity: number; unit_price: number }>;
@@ -200,8 +276,8 @@ async function sendOrderConfirmationEmail(input: {
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:620px;margin:0 auto;padding:20px;">
       <h2 style="margin:0 0 12px;color:#1A1A1A;">Your order is confirmed</h2>
       <p style="margin:0 0 14px;color:#444;">Thank you for ordering with CamperPlan by Crafted.</p>
-      <p style="margin:0 0 8px;color:#444;"><strong>Order:</strong> ${input.orderId}</p>
-      <p style="margin:0 0 16px;color:#444;"><strong>Total:</strong> £${input.amountTotal.toFixed(2)} ${input.currency.toUpperCase()}</p>
+      <p style="margin:0 0 8px;color:#444;"><strong>Order:</strong> ${input.orderDisplayId}</p>
+      <p style="margin:0 0 16px;color:#444;"><strong>Total:</strong> ${formatMoney(input.amountTotal, input.currency)}</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
         <thead>
           <tr><th style="text-align:left;padding-bottom:8px;border-bottom:1px solid #ddd;">Item</th><th style="text-align:center;padding-bottom:8px;border-bottom:1px solid #ddd;">Qty</th><th style="text-align:right;padding-bottom:8px;border-bottom:1px solid #ddd;">Line total</th></tr>
@@ -221,15 +297,17 @@ async function sendOrderConfirmationEmail(input: {
     body: JSON.stringify({
       from: ORDER_FROM_EMAIL,
       to: input.toEmail,
-      subject: `Order Confirmation - ${input.orderId}`,
+      subject: `Your Crafted Camper Co. order ${input.orderDisplayId} is confirmed`,
       html,
     }),
   });
 }
 
 async function sendFulfilmentNotification(input: {
-  orderId: string;
+  orderDisplayId: string;
   customerEmail: string;
+  customerName: string;
+  shippingAddress: string;
   amountTotal: number;
   currency: string;
   lineItems: Array<{ product_id: string; name: string; quantity: number; unit_price: number }>;
@@ -246,7 +324,7 @@ async function sendFulfilmentNotification(input: {
 
   const usageType = cs.usage || 'Not specified';
   const climates = Array.isArray(cs.climates) ? cs.climates.join(', ') : 'Not specified';
-  const partySize = cs.partySize || 'Not specified';
+  const partySize = cs.party || 'Not specified';
   const daysOffGrid = cs.daysOffGrid || 'Not specified';
   const buildTier = cs.buildTier || 'Not specified';
 
@@ -306,15 +384,17 @@ async function sendFulfilmentNotification(input: {
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:700px;margin:0 auto;padding:20px;">
       <div style="background:#1A1A1A;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;">
         <h1 style="margin:0;font-size:22px;color:#D9A05B;">New Order - Fulfilment Required</h1>
-        <p style="margin:8px 0 0;color:#B8B0A4;font-size:14px;">Order ${input.orderId}</p>
+        <p style="margin:8px 0 0;color:#B8B0A4;font-size:14px;">Order ${input.orderDisplayId}</p>
       </div>
 
       <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;">
 
         <h2 style="margin:0 0 12px;font-size:16px;color:#1A1A1A;border-bottom:2px solid #D9A05B;padding-bottom:8px;">Customer Details</h2>
+        <p style="margin:4px 0;"><strong>Name:</strong> ${input.customerName || 'Not provided'}</p>
         <p style="margin:4px 0;"><strong>Email:</strong> <a href="mailto:${input.customerEmail}">${input.customerEmail}</a></p>
+        <p style="margin:4px 0;"><strong>Shipping:</strong> ${input.shippingAddress}</p>
         <p style="margin:4px 0;"><strong>Project:</strong> ${input.projectName || 'Unnamed project'}</p>
-        <p style="margin:4px 0 16px;"><strong>Order total:</strong> \u00a3${input.amountTotal.toFixed(2)} ${input.currency.toUpperCase()}</p>
+        <p style="margin:4px 0 16px;"><strong>Order total:</strong> ${formatMoney(input.amountTotal, input.currency)}</p>
 
         <h2 style="margin:0 0 12px;font-size:16px;color:#1A1A1A;border-bottom:2px solid #D9A05B;padding-bottom:8px;">Van Specification</h2>
         <p style="margin:4px 0;"><strong>Van:</strong> ${vanDisplay}</p>
@@ -377,7 +457,118 @@ async function sendFulfilmentNotification(input: {
     body: JSON.stringify({
       from: NOTIFY_FROM_EMAIL,
       to: NOTIFY_EMAIL,
-      subject: `[NEW ORDER] ${input.customerEmail} - \u00a3${input.amountTotal.toFixed(2)}${hasWiringKit ? ' - WIRING KIT FULFILMENT' : ''}`,
+      subject: `[NEW ORDER] ${input.orderDisplayId} — ${input.customerEmail} — ${formatMoney(input.amountTotal, input.currency)}${hasWiringKit ? ' — WIRING KIT FULFILMENT' : ''}`,
+      html,
+    }),
+  });
+}
+
+async function sendSupplierFulfilmentEmail(input: {
+  orderDisplayId: string;
+  orderDate: string;
+  customerName: string;
+  customerEmail: string;
+  shippingAddress: string;
+  camperState: any;
+  buildSummary: { batteryAh?: number; inverterVA?: number; mpptW?: number; dcDcA?: number };
+  wiringSpec: any | null;
+  variant: 'wiring_kit_bespoke' | 'wiring_kit_bespoke_raw';
+}) {
+  if (!RESEND_API_KEY) return;
+  const supplierEmail = 'grace@batteriesandsolar.co.uk';
+  const components = Array.isArray(input.wiringSpec?.components) ? input.wiringSpec.components : [];
+  const connections = Array.isArray(input.wiringSpec?.connections) ? input.wiringSpec.connections : [];
+  const componentLabelById = new Map<string, string>();
+  for (const component of components) {
+    const id = component?.product?.id ?? '';
+    const label = component?.product?.name || component?.role || id;
+    if (id) componentLabelById.set(id, label);
+  }
+
+  const cutsRows = connections.map((wire: any) => {
+    const fromLabel = componentLabelById.get(wire?.from?.componentId) ?? wire?.from?.componentId ?? 'Unknown';
+    const toLabel = componentLabelById.get(wire?.to?.componentId) ?? wire?.to?.componentId ?? 'Unknown';
+    const fromLug = wire?.terminalLugFrom ? `${wire.terminalLugFrom.cableSize}mm² M${wire.terminalLugFrom.studSize}` : '-';
+    const toLug = wire?.terminalLugTo ? `${wire.terminalLugTo.cableSize}mm² M${wire.terminalLugTo.studSize}` : '-';
+    return {
+      fromLabel,
+      toLabel,
+      gauge: `${wire?.cableGauge ?? '?'}mm²`,
+      lengthMm: Math.round((Number(wire?.length) || 0) * 1000),
+      color: wire?.cableColor ?? '?',
+      fromLug,
+      toLug,
+      heatShrink: 'Yes',
+    };
+  });
+
+  const materialCounts = new Map<string, number>();
+  const cableByGauge = new Map<string, number>();
+  const heatshrinkByGauge = new Map<string, number>();
+  for (const row of cutsRows) {
+    cableByGauge.set(row.gauge, (cableByGauge.get(row.gauge) ?? 0) + row.lengthMm);
+    heatshrinkByGauge.set(row.gauge, (heatshrinkByGauge.get(row.gauge) ?? 0) + 60);
+    if (row.fromLug !== '-') materialCounts.set(row.fromLug, (materialCounts.get(row.fromLug) ?? 0) + 1);
+    if (row.toLug !== '-') materialCounts.set(row.toLug, (materialCounts.get(row.toLug) ?? 0) + 1);
+  }
+
+  const cutsListHtml = cutsRows.length > 0
+    ? cutsRows.map((row) => `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${row.fromLabel}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.toLabel}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.gauge}</td><td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${row.lengthMm}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.color}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.fromLug}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.toLug}</td><td style="padding:6px;border-bottom:1px solid #eee;">${row.heatShrink}</td></tr>`).join('')
+    : '<tr><td colspan="8" style="padding:8px;">Wiring spec details available in the customer project — please contact Dan for full cut sheet.</td></tr>';
+
+  const lugRows = Array.from(materialCounts.entries())
+    .map(([name, qty]) => `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${name}</td><td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${qty}</td></tr>`)
+    .join('');
+  const cableRows = Array.from(cableByGauge.entries())
+    .map(([gauge, lengthMm]) => `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${gauge}</td><td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${lengthMm}mm</td></tr>`)
+    .join('');
+  const heatshrinkRows = Array.from(heatshrinkByGauge.entries())
+    .map(([gauge, lengthMm]) => `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${gauge}</td><td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${lengthMm}mm</td></tr>`)
+    .join('');
+
+  const van = input.camperState?.van || {};
+  const variantNote = input.variant === 'wiring_kit_bespoke'
+    ? 'Pre-cut + Pre-crimped + Heat-shrunk'
+    : 'Raw materials only — customer crimps';
+
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:900px;margin:0 auto;padding:20px;color:#1a1a1a;">
+      <h2 style="margin:0 0 12px;">CamperPlan Wiring Kit Cut Sheet</h2>
+      <p style="margin:0 0 18px;"><strong>Order:</strong> ${input.orderDisplayId}</p>
+      <h3>Order metadata</h3>
+      <p><strong>Date:</strong> ${input.orderDate}<br/><strong>Customer:</strong> ${input.customerName || 'Not provided'}<br/><strong>Email:</strong> ${input.customerEmail}<br/><strong>Shipping:</strong> ${input.shippingAddress}</p>
+      <h3>Vehicle</h3>
+      <p><strong>Van:</strong> ${van.manufacturerName || ''} ${van.model || ''}<br/><strong>Wheelbase:</strong> ${van.wheelbase || 'Not provided'}<br/><strong>Roof:</strong> ${van.roofHeight || 'Not provided'}</p>
+      <h3>Build summary</h3>
+      <p><strong>Battery:</strong> ${input.buildSummary?.batteryAh ?? 'N/A'}Ah<br/><strong>Inverter:</strong> ${input.buildSummary?.inverterVA ?? 'N/A'}VA<br/><strong>MPPT:</strong> ${input.buildSummary?.mpptW ?? 'N/A'}W<br/><strong>DC-DC:</strong> ${input.buildSummary?.dcDcA ?? 'N/A'}A</p>
+      <h3>CUTS LIST</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">From</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">To</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">Gauge</th><th style="text-align:right;padding:6px;border-bottom:2px solid #ddd;">Length (mm)</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">Colour</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">Lug (from)</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">Lug (to)</th><th style="text-align:left;padding:6px;border-bottom:2px solid #ddd;">Heat-shrink</th></tr>
+        </thead>
+        <tbody>${cutsListHtml}</tbody>
+      </table>
+      <h3>MATERIALS LIST</h3>
+      <p><strong>Lugs</strong></p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody>${lugRows || '<tr><td style="padding:6px;">None</td><td style="padding:6px;text-align:right;">0</td></tr>'}</tbody></table>
+      <p><strong>Cable length per gauge</strong></p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody>${cableRows || '<tr><td style="padding:6px;">None</td><td style="padding:6px;text-align:right;">0mm</td></tr>'}</tbody></table>
+      <p><strong>Heat-shrink per gauge</strong></p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody>${heatshrinkRows || '<tr><td style="padding:6px;">None</td><td style="padding:6px;text-align:right;">0mm</td></tr>'}</tbody></table>
+      <p style="margin-top:16px;"><strong>Variant:</strong> ${variantNote}</p>
+    </div>
+  `;
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: NOTIFY_FROM_EMAIL,
+      to: supplierEmail,
+      subject: `[CamperPlan Wiring Kit] ${input.orderDisplayId} — Cut sheet`,
       html,
     }),
   });
@@ -471,10 +662,12 @@ serve(async (req: Request) => {
 
   const amountTotal = (Number(session.amount_total) || 0) / 100;
   const orderStatus = session.payment_status === 'paid' ? 'paid' : (session.status ?? 'completed');
+  const displayOrderId = await generateDisplayOrderId(supabaseAdmin);
   const { error: orderInsertError } = await supabaseAdmin.from('orders').insert({
     user_id: userId,
     project_id: projectId,
     stripe_session_id: session.id,
+    display_order_id: displayOrderId,
     status: orderStatus,
     currency: (session.currency ?? 'gbp').toLowerCase(),
     amount_total: amountTotal,
@@ -535,11 +728,12 @@ serve(async (req: Request) => {
     }
   }
 
-  if (session.customer_email) {
+  const receiptEmail = session.customer_email || session.customer_details?.email;
+  if (receiptEmail) {
     try {
       await sendOrderConfirmationEmail({
-        toEmail: session.customer_email,
-        orderId: session.id,
+        toEmail: receiptEmail,
+        orderDisplayId: displayOrderId,
         amountTotal,
         currency: (session.currency ?? 'gbp').toLowerCase(),
         lineItems,
@@ -553,6 +747,8 @@ serve(async (req: Request) => {
   try {
     let camperState = {};
     let projectName = '';
+    let pendingWiringSpec: any | null = null;
+    let pendingBuildSummary: any | null = null;
     if (projectId) {
       const projectRes = await supabaseAdmin
         .from('projects')
@@ -564,16 +760,50 @@ serve(async (req: Request) => {
         projectName = projectRes.data.name || '';
       }
     }
+    const pendingSpecRes = await supabaseAdmin
+      .from('pending_wiring_specs')
+      .select('wiring_spec, build_summary')
+      .eq('stripe_session_id', session.id)
+      .maybeSingle();
+    if (pendingSpecRes.data) {
+      pendingWiringSpec = pendingSpecRes.data.wiring_spec ?? null;
+      pendingBuildSummary = pendingSpecRes.data.build_summary ?? null;
+    }
+
+    const customerEmail = session.customer_email || session.customer_details?.email || metadata.email || 'Unknown';
+    const customerName = session.shipping_details?.name || session.customer_details?.name || 'Not provided';
+    const shippingAddress = formatAddress(session.shipping_details?.address || session.customer_details?.address);
 
     await sendFulfilmentNotification({
-      orderId: session.id,
-      customerEmail: session.customer_email || metadata.email || 'Unknown',
+      orderDisplayId: displayOrderId,
+      customerEmail,
+      customerName,
+      shippingAddress,
       amountTotal,
       currency: (session.currency ?? 'gbp').toLowerCase(),
       lineItems,
       camperState,
       projectName,
     });
+
+    const wiringKitVariant = lineItems.some((item) => item.product_id === 'wiring_kit_bespoke')
+      ? 'wiring_kit_bespoke'
+      : lineItems.some((item) => item.product_id === 'wiring_kit_bespoke_raw')
+        ? 'wiring_kit_bespoke_raw'
+        : null;
+    if (wiringKitVariant) {
+      await sendSupplierFulfilmentEmail({
+        orderDisplayId: displayOrderId,
+        orderDate: new Date().toISOString().slice(0, 10),
+        customerName,
+        customerEmail,
+        shippingAddress,
+        camperState,
+        buildSummary: pendingBuildSummary ?? {},
+        wiringSpec: pendingWiringSpec,
+        variant: wiringKitVariant,
+      });
+    }
   } catch (e) {
     console.error('fulfilment notification email failed', e);
   }

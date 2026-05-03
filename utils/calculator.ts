@@ -108,12 +108,16 @@ export const APPLIANCES = {
     { id: 'dc_fan', name: 'Roof Fan (Maxxair)', watts: '30W', ah: 5 },
     { id: 'dc_led', name: 'LED Lighting', watts: '4W', ah: 2 },
     { id: 'dc_usb', name: 'USB/12V Sockets', watts: '18W', ah: 3 },
-    { id: 'dc_phone', name: 'Phone Charging', watts: '10W', ah: 2 },
+    { id: 'dc_phone', name: 'Phone Charging', watts: '10W', ah: 1.7 },
+    { id: 'dc_tv', name: '12V TV', watts: '30W', ah: 8 },
     { id: 'dc_pump', name: 'Water Pump', watts: '15W', ah: 1 },
-    { id: 'ac_laptop', name: 'Laptop Charger', watts: '80W', ah: 17 },
     { id: 'ac_starlink', name: 'Starlink Satellite', watts: '60W', ah: 30 },
   ],
   ac_240v: [
+    { id: 'ac_laptop', name: 'Laptop Charger', watts: '80W', ah: 17 },
+    { id: 'ac_induction_1', name: '1-Ring Induction Hob', watts: '1800W', ah: 30 },
+    { id: 'ac_induction_2', name: '2-Ring Induction Hob', watts: '2200W', ah: 60 },
+    { id: 'ac_induction_4', name: '4-Ring Induction Hob', watts: '3000W', ah: 90 },
     { id: 'ac_aircon', name: 'Air Conditioner', watts: '700W', ah: 280 },
     { id: 'hp_coffee', name: 'Coffee Machine', watts: '1500W', ah: 15 },
     { id: 'hp_airfryer', name: 'Air Fryer', watts: '1500W', ah: 45 },
@@ -138,7 +142,7 @@ export function calculate(state: CamperState): BuildSpec {
     cookFuel, heatFuel, waterFuel,
     solarWatts, driveHours, dcDcSize, wantsHookupCharging,
     monitoringChoice,
-    selectedAppliances, applianceHoursOverrides, customAppliances,
+    selectedAppliances, applianceHoursOverrides, applianceQuantities, customAppliances,
   } = state;
 
   let base = 20;
@@ -199,6 +203,10 @@ export function calculate(state: CamperState): BuildSpec {
         ah = (watts * overrideHours) / 12;
       } else {
         ah = app.ah;
+      }
+      if (app.id === 'dc_phone') {
+        const qty = Math.max(1, Math.round(applianceQuantities.dc_phone ?? 1));
+        ah *= qty;
       }
       if (app.id === 'dc_fridge') ah *= fridgeScale;
       appliances += ah;
@@ -275,10 +283,16 @@ export function calculate(state: CamperState): BuildSpec {
   if (state.needs240v) {
     let peakWatts = 0;
 
-    // Implicit induction hob when cooking is electric. Induction pulls
-    // 2000 to 3000W on full boost; budget 2500W to keep the inverter from
-    // tripping mid-cook.
-    if (cookFuel === 'Electric') peakWatts = Math.max(peakWatts, 2500);
+    const hasSelectedInduction = !!(
+      selectedAppliances.ac_induction_1 ||
+      selectedAppliances.ac_induction_2 ||
+      selectedAppliances.ac_induction_4
+    );
+    // Electric cooking defaults to the 2-ring induction profile if no
+    // explicit ring option has been selected yet.
+    if (cookFuel === 'Electric' && !hasSelectedInduction) {
+      peakWatts = Math.max(peakWatts, 2200);
+    }
 
     // Toggled 240V catalogue appliances. Peak draw applies regardless of
     // how short the user runs them. A 1500W appliance for 5 minutes still

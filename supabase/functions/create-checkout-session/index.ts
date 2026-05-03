@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') || '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -40,6 +43,7 @@ serve(async (req: Request) => {
       email,
       userId,
       projectId,
+      pendingWiringSpec,
       successUrl = 'https://camperplan.com/checkout-success',
       cancelUrl = 'https://camperplan.com/checkout-cancel',
     } = body ?? {};
@@ -130,6 +134,26 @@ serve(async (req: Request) => {
     if (!response.ok) {
       return jsonResponse({ error: data?.error?.message ?? 'Stripe session failed' }, 502);
     }
+    if (data?.id && pendingWiringSpec && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        await supabaseAdmin.from('pending_wiring_specs').upsert({
+          stripe_session_id: data.id,
+          user_id: userId ?? null,
+          project_id: projectId ?? null,
+          wiring_spec: pendingWiringSpec.wiringSpec ?? {},
+          build_summary: pendingWiringSpec.buildSummary ?? {},
+        }, {
+          onConflict: 'stripe_session_id',
+          ignoreDuplicates: false,
+        });
+      } catch (persistErr) {
+        console.error('pending wiring spec write failed', persistErr);
+      }
+    }
+
     return jsonResponse({ url: data.url, id: data.id });
   } catch (e: any) {
     return jsonResponse({ error: e?.message ?? 'Internal error' }, 500);
