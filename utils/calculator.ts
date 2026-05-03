@@ -108,6 +108,7 @@ export const APPLIANCES = {
     { id: 'dc_fan', name: 'Roof Fan (Maxxair)', watts: '30W', ah: 5 },
     { id: 'dc_led', name: 'LED Lighting', watts: '4W', ah: 2 },
     { id: 'dc_usb', name: 'USB/12V Sockets', watts: '18W', ah: 3 },
+    { id: 'dc_phone', name: 'Phone Charging', watts: '10W', ah: 2 },
     { id: 'dc_pump', name: 'Water Pump', watts: '15W', ah: 1 },
     { id: 'ac_laptop', name: 'Laptop Charger', watts: '80W', ah: 17 },
     { id: 'ac_starlink', name: 'Starlink Satellite', watts: '60W', ah: 30 },
