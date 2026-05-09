@@ -60,10 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, firstName?: string, lastName?: string) => {
     const referralCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+    // Where Supabase redirects after the user clicks the email-confirmation
+    // link. Without this, Supabase falls back to the project's default Site
+    // URL which pointed at the legacy camperplan.com domain and 404s. On web
+    // we send them to the current origin's home page; on native the deep
+    // link scheme registered in app.json handles it.
+    const emailRedirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? `${window.location.origin}/`
+      : 'https://app.craftedcamper.co/';
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           first_name: firstName || '',
           last_name: lastName || '',
