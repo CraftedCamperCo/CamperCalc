@@ -42,6 +42,14 @@
       "expo-secure-store",
       "expo-mail-composer",
       [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "crafted-camper-co",
+          "project": "react-native"
+        }
+      ],
+      [
         "@stripe/stripe-react-native",
         {
           "merchantIdentifier": "merchant.com.camperplan.crafted"

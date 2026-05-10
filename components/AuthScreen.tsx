@@ -96,7 +96,7 @@ export default function AuthScreen() {
           lastName: lastName.trim(),
         }).catch(() => {});
       }
-      setSuccessMsg('Check your email to confirm your account, then sign in.');
+      setSuccessMsg("Check your email to confirm your account, then sign in.\n\nIf it hasn't arrived in 3 minutes, please check your junk/spam folder.");
       setMode('login');
       return;
     }
