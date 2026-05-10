@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.subscribe-mailing-list]
 verify_jwt = false
+
+[functions.dvla-lookup]
+verify_jwt = true
