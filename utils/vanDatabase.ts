@@ -301,7 +301,12 @@ export function getManufacturer(id: string): Manufacturer | undefined {
  */
 export function matchModelFromDvla(dvlaModel: string | undefined, models: VanModel[]): VanModel | undefined {
   if (!models.length) return undefined;
-  if (!dvlaModel?.trim()) return models[0];
+  // DVLA frequently returns the make but no model (e.g. GL19 VCX comes back
+  // with VOLKSWAGEN and no model field). Returning models[0] in that case
+  // silently picked Transporter T6.1 for a Crafter — worse than nothing.
+  // Return undefined so the caller leaves the model unset and the user
+  // picks manually.
+  if (!dvlaModel?.trim()) return undefined;
   const q = dvlaModel.toLowerCase().trim();
   // Sort by name length descending so "Transit Custom" matches before "Transit"
   const sorted = [...models].sort((a, b) => b.name.length - a.name.length);
@@ -311,7 +316,9 @@ export function matchModelFromDvla(dvlaModel: string | undefined, models: VanMod
     if (q.includes(name) || name.includes(q)) return m;
     if (q.includes(baseName) || baseName.includes(q)) return m;
   }
-  return models[0];
+  // Same reasoning as above: if DVLA returned something we don't recognise,
+  // don't guess — leave model unset and let the user choose.
+  return undefined;
 }
 
 export function getModel(manufacturerId: string, modelName: string): VanModel | undefined {
