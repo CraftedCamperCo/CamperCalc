@@ -268,14 +268,25 @@ export default function ProjectListScreen() {
         setFormError('Vehicle not in database. Registration found but we don\'t have that van in our list — please pick manually.');
         return;
       }
+      // Always auto-select the manufacturer once we have a confirmed match
+      // — DVLA reliably returns make. The model field is often missing
+      // (e.g. real vans like GL19 VCX come back with make only), so when
+      // the model can't be auto-matched we still want the user nudged
+      // into the correct manufacturer's model picker rather than back to
+      // square one.
+      setSelectedMfr(manufacturer);
       const matchedModel = matchModelFromDvla(vehicle.model, manufacturer.models);
       if (matchedModel) {
-        setSelectedMfr(manufacturer);
         setSelectedModel(matchedModel);
         // Only auto-select a variant when there is exactly one possible option.
         // DVLA does not reliably return wheelbase/roof data for our selector.
         setSelectedVariant(matchedModel.variants.length === 1 ? matchedModel.variants[0] : null);
         setRegLookupStatus('found');
+      } else {
+        // Make matched, model didn't — surface a positive-but-incomplete
+        // status so the user knows to pick the model below.
+        setRegLookupStatus('found');
+        setFormError('');
       }
     } catch (e: any) {
       setRegLookupStatus('not_found');

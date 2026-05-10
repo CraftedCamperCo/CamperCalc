@@ -18,7 +18,12 @@ const DVLA_API_KEY = Deno.env.get('DVLA_API_KEY') || '';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  // supabase.functions.invoke() automatically attaches `apikey` and
+  // `x-client-info` headers in addition to the auth bearer. The browser
+  // preflight will fail unless we explicitly allow them. Listing the
+  // standard supabase header set here keeps the function compatible with
+  // any future client invocation pattern.
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 function jsonResponse(payload: Record<string, unknown>, status = 200) {
