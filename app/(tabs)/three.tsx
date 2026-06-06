@@ -16,6 +16,7 @@ import { tapHaptic } from '@/utils/haptics';
 import { calculateInsulation } from '@/utils/insulationCalculator';
 import { calculateValueSaved } from '@/utils/valueSaved';
 import { getVariant, variantLabel } from '@/utils/vanDatabase';
+import { supabase } from '@/utils/supabase';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -145,12 +146,25 @@ export default function YourBuildScreen() {
   const [saveMessage, setSaveMessage] = useState('');
   const [shareCode] = useState(() => (user?.id ? user.id.slice(0, 8).toUpperCase() : 'CAMPERPLAN'));
   const shareShotRef = useRef<ViewShot | null>(null);
+  const projectId = currentProject?.id;
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(heroAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     trackRecommendationsViewed(result.recommendedBankAh, result.recommendedSolarW, bundlePrice);
   }, []);
+
+  useEffect(() => {
+    if (!projectId) return;
+    supabase
+      .from('projects')
+      .update({ summary_viewed_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .is('summary_viewed_at', null)
+      .then(({ error }) => {
+        if (error) console.error('Failed to mark summary viewed:', error);
+      });
+  }, [projectId]);
 
   useEffect(() => {
     setSelectedElectricalIds(recommendedIds);
